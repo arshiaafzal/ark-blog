@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ark: routed readout split</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:transparent}
+  body{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:#18181b;padding:4px 2px 6px}
+  body.dark{color:#e4e4e7}
+  .stage{max-width:640px;margin:0 auto;padding:2px 0;text-align:center}
+  #eq{font-size:14.5px;overflow-x:auto;overflow-y:hidden;padding:2px 0}
+  #eq .katex{font-size:1.05em}
+  @media (max-width:560px){#eq{font-size:10.5px}}
+  html.full .stage{max-width:none}
+  html.full #eq,html.full #eq2{overflow:visible;padding-bottom:6px;font-size:14.5px}
+  #eq2:empty{display:none}
+</style>
+</head>
+<body>
+<div class="stage">
+  <div id="eq"></div>
+  <div id="eq2" class="eq-line"></div>
+</div>
+<script>
+/* Right side of Figure 2 of the paper: the routed readout above (ark_readout_matrix.html)
+   splits by column into a packed exponential part (KV cache) and a recurrent linear part (state) */
+let B='#2E6DB4', O='#D9730D';
+const r=[1,0,1,0,0], T=5;
+const kept=[...r.keys()].filter(j=>r[j]).map(j=>j+1);
+const comp=[...r.keys()].filter(j=>!r[j]).map(j=>j+1);
+/* ?decay=1 writes the decay f_{j:t} into every score (neutral color: it is shared by both kernels and
+   always spans the ORIGINAL positions, even inside the packed term, as in the paper's Figure 8) */
+const qs=new URLSearchParams(location.search), full=qs.has('full'), decay=qs.has('decay');
+if(full)document.documentElement.classList.add('full');
+const dec=(i,j)=>decay&&j<i?String.raw`\,f_{${j}:${i}}`:'';
+const cexp=(i,j)=>String.raw`\textcolor{${B}}{\exp\!\left(q_{${i}}^{\top} k_{${j}}\right)}${dec(i,j)}`;
+const cphi=(i,j)=>String.raw`\textcolor{${O}}{\phi\!\left(q_{${i}}\right)^{\top}\!\phi\!\left(k_{${j}}\right)}${dec(i,j)}`;
+const cell=(i,j)=>j>i?'0':(r[j-1]?cexp(i,j):cphi(i,j));
+const mat=(cols)=>{const R=[];for(let i=1;i<=T;i++)R.push(cols.map(j=>cell(i,j)).join(' & '));return String.raw`\begin{pmatrix}${R.join(String.raw` \\[3pt] `)}\end{pmatrix}`};
+const vec=(cols)=>String.raw`\begin{pmatrix}${cols.map(j=>`v_{${j}}^{\\top}`).join(String.raw` \\[3pt] `)}\end{pmatrix}`;
+const term=(cols,label)=>String.raw`\underbrace{${mat(cols)}\cdot${vec(cols)}}_{\text{${label}}}`;
+const all=[...Array(T).keys()].map(j=>j+1);
+const AS=String.raw`\def\arraystretch{1.45}`;
+const split=()=>String.raw`${term(kept,'Packed QKV')} + ${term(comp,'Recurrent QKV')}`;
+/* default (Part 1): Packed + Recurrent on one line.
+   ?full=1 (Part 3): Full QKV on the first line, "= Packed + Recurrent" on the second, so each gets the full width */
+const lines=()=>full?[AS+term(all,'Full QKV'),AS+'='+String.raw`\;`+split()]:[AS+split()];
+/* follow the site's light/dark theme */
+function isDark(){try{const t=parent.document.documentElement.getAttribute('data-theme');if(t)return t==='dark'}catch(e){}return matchMedia('(prefers-color-scheme: dark)').matches}
+function render(){if(!window.katex){setTimeout(render,80);return}
+  const d=isDark();document.body.classList.toggle('dark',d);B=d?'#7fb0ee':'#2E6DB4';O=d?'#f2a35c':'#D9730D';
+  const L=lines(),ids=['eq','eq2'];
+  ids.forEach((id,n)=>{const el=document.getElementById(id);if(L[n])katex.render(L[n],el,{throwOnError:false,displayMode:true});else el.innerHTML=''});fit()}
+/* full mode: one common font size so the wider line fits the frame width */
+function fit(){if(!full)return;const els=['eq','eq2'].map(id=>document.getElementById(id));
+  els.forEach(e=>e.style.fontSize='14.5px');let s=1;
+  els.forEach(e=>{const k=e.querySelector('.katex-display>.katex');if(k)s=Math.min(s,e.clientWidth/k.scrollWidth)});
+  els.forEach(e=>e.style.fontSize=(14.5*s*0.98).toFixed(2)+'px')}
+addEventListener('resize',fit);
+if(document.fonts)document.fonts.ready.then(fit);
+render();
+try{new MutationObserver(render).observe(parent.document.documentElement,{attributes:true,attributeFilter:['data-theme']})}catch(e){}
+</script>
+</body>
+</html>

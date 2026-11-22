@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ark: architecture ablations</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:#1e293b;background:transparent;padding:4px 2px 6px}
+  .wrap{max-width:680px;margin:0 auto;padding:4px 0}
+  .panels{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:22px}
+  .ttl{font-size:11.5px;font-weight:600;color:#475569;margin:0 0 2px 4px}
+  .box{position:relative}
+  .cap{font-size:11px;color:#64748b;text-align:center;margin-top:6px}
+  @media (max-width:620px){.panels{grid-template-columns:minmax(0,1fr);gap:12px}}
+  body.dark .wrap{background:#fff;border-radius:14px;padding:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="panels">
+    <div><div class="ttl">Block design</div><div class="box" style="height:232px"><canvas id="block"></canvas></div></div>
+    <div><div class="ttl">Feature map</div><div class="box" style="height:110px"><canvas id="fmap"></canvas></div></div>
+  </div>
+  <div class="cap">Mean recall accuracy (%) over SWDE, FDA and SQuAD, ~400M models. Purple: Ark's default.</div>
+</div>
+<script>
+/* Tables 7-8 of the paper: [label, SWDE, FDA, SQuAD, isDefault] */
+const BLOCK=[
+ ['Default',53.8,71.9,30.5,1],
+ ['No QK-RMSNorm',40.5,47.2,26.6],
+ ['LoRA after norm',38.4,61.0,31.2],
+ ['LoRA on both branches',50.0,52.5,31.6],
+ ['No LoRA',50.2,60.3,31.8],
+ ['+ conv (linear branch)',40.8,37.4,27.7],
+ ['+ conv (both branches)',26.0,28.2,28.5],
+];
+const FMAP=[   // 4 query heads per KV group (the default)
+ ['1+elu',55.6,71.9,30.5,1],
+ ['ReLU',52.4,62.3,36.1],
+ ['exp',46.4,54.4,22.6],
+];
+const ARK='#7c5cd6', ALT='#9aa4b2B3';
+const font='-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif';
+const mean=r=>(r[1]+r[2]+r[3])/3;
+function bars(id,rows){
+  const values={id:'values',afterDatasetsDraw(ch){
+    const {ctx}=ch;ctx.save();ctx.textBaseline='middle';
+    ch.getDatasetMeta(0).data.forEach((b,i)=>{const def=rows[i][4];
+      ctx.font=def?`700 10.5px ${font}`:`500 10px ${font}`;ctx.fillStyle=def?'#5b3fc4':'#64748b';
+      ctx.fillText(mean(rows[i]).toFixed(1),b.x+5,b.y)});ctx.restore()}};
+  new Chart(document.getElementById(id),{type:'bar',plugins:[values],
+    data:{labels:rows.map(r=>r[0]),datasets:[{data:rows.map(mean),backgroundColor:rows.map(r=>r[4]?ARK:ALT),borderRadius:3,barThickness:15}]},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,animation:false,layout:{padding:{right:30}},
+      plugins:{legend:{display:false},tooltip:{backgroundColor:'#1e293b',padding:7,cornerRadius:6,displayColors:false,
+        callbacks:{label:(c)=>{const r=rows[c.dataIndex];return[`mean ${mean(r).toFixed(1)}%`,`SWDE ${r[1]} · FDA ${r[2]} · SQuAD ${r[3]}`]}}}},
+      scales:{
+        x:{min:0,max:60,grid:{color:'#f1f5f9'},border:{display:false},ticks:{color:'#94a3b8',font:{size:10},stepSize:20}},
+        y:{grid:{display:false},border:{color:'#cbd5e1'},
+          ticks:{color:(c)=>rows[c.index][4]?'#5b3fc4':'#475569',font:(c)=>({size:10.5,weight:rows[c.index][4]?'700':'500'})}}}}});
+}
+bars('block',BLOCK);
+bars('fmap',FMAP);
+</script>
+<script>
+/* frameless on the light theme; on the dark theme keep a white panel behind the figure */
+(()=>{const dark=()=>{try{const t=parent.document.documentElement.getAttribute('data-theme');if(t)return t==='dark'}catch(e){}return matchMedia('(prefers-color-scheme: dark)').matches};
+ const set=()=>document.body.classList.toggle('dark',dark());set();
+ try{new MutationObserver(set).observe(parent.document.documentElement,{attributes:true,attributeFilter:['data-theme']})}catch(e){}})();
+</script>
+</body>
+</html>

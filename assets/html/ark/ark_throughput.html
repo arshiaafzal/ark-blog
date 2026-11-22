@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ark: measured throughput</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:#1e293b;background:transparent;padding:4px 4px 10px}
+  .wrap{max-width:900px;margin:0 auto;background:#fff;border:1px solid #e5e9f0;border-radius:14px;padding:16px 14px} /* ark-card */
+  .tabs{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-bottom:8px}
+  .tabs button{font:inherit;font-size:12.5px;border:1px solid #cbd5e1;background:#fff;border-radius:999px;padding:5px 13px;cursor:pointer}
+  .tabs button.on{background:#0f172a;color:#fff;border-color:#0f172a}
+  .sub{text-align:center;font-size:12px;color:#64748b;margin-bottom:6px}
+  .box{position:relative;height:340px}
+  .note{font-size:11.5px;color:#64748b;text-align:center;margin-top:8px;font-style:italic;line-height:1.45}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="tabs" id="tabs">
+    <button data-k="dp" class="on">Thpt vs. prompt length</button>
+    <button data-k="dg">Thpt vs. generation length</button>
+    <button data-k="pp">Prefill vs. prompt length</button>
+  </div>
+  <div class="sub" id="sub"></div>
+  <div class="box"><canvas id="c"></canvas></div>
+  <div class="note">2B models on one H100 (BF16; FP32 Ark recurrent state; CUDA graphs). Ark at 10% target retention vs. full FlashAttention and Hybrid GLA 1:4. Throughput counts tokens over the whole batch. Hover for exact values.</div>
+</div>
+<script>
+const L=['64','256','1K','2K','4K','8K','16K','32K','64K'];
+const D={
+ dp:{sub:'Decode: batch 8, 256 generated tokens, varying prompt length',unit:'generated tokens / s',labels:['256','1K','2K','4K','8K','16K','32K','64K'],x:'prompt length',
+   ark:[3021,2915,2928,2880,2910,2589,2513,2137],fa:[2935,2649,2495,2269,1915,1503,1042,637],gla:[1890,1879,1951,1835,1797,1692,1545,1338]},
+ dg:{sub:'Decode: batch 8, 4K prompt, varying number of generated tokens',unit:'generated tokens / s',labels:['1','16','64','256','1K','4K','16K','64K'],x:'generated tokens',
+   ark:[2824,2868,2871,2880,2958,2966,2826,2456],fa:[2048,2068,2074,2269,2330,2152,1622,818],gla:[1779,1803,1808,1835,1825,1911,1807,1511]},
+ pp:{sub:'Prefill: batch 1, varying prompt length',unit:'prompt tokens / s',labels:L,x:'prompt length',
+   ark:[14063,46613,87693,96615,99068,98695,94250,88343,78950],fa:[18717,61422,112286,119092,110744,95660,73404,50369,30297],gla:[11865,49279,87212,93883,94473,93560,88070,80318,67703]}
+};
+let chart;
+function show(k){
+  document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.k===k));
+  const d=D[k];document.getElementById('sub').textContent=d.sub;
+  const mk=(n,c,arr,w)=>({label:n,data:arr,borderColor:c,backgroundColor:c,borderWidth:w,pointRadius:4,pointHoverRadius:7,pointBorderColor:'#fff',pointBorderWidth:1.5,tension:.15});
+  const ds=[mk('Ark (10% retention)','#7c5cd6',d.ark,2.5),mk('Full FlashAttention','#eb6834',d.fa,2),mk('Hybrid GLA 1:4','#199e70',d.gla,2)];
+  if(chart) chart.destroy();
+  chart=new Chart(document.getElementById('c'),{type:'line',data:{labels:d.labels,datasets:ds},options:{responsive:true,maintainAspectRatio:false,animation:{duration:400},
+    interaction:{mode:'index',intersect:false},
+    plugins:{legend:{position:'top',labels:{boxWidth:14,boxHeight:3,color:'#334155'}},tooltip:{callbacks:{label:(c)=>`${c.dataset.label}: ${c.raw.toLocaleString()} tok/s`}}},
+    scales:{x:{title:{display:true,text:d.x,color:'#475569'},grid:{display:false},ticks:{color:'#64748b'}},
+      y:{beginAtZero:true,title:{display:true,text:d.unit,color:'#475569'},grid:{color:'#eef2f7'},ticks:{color:'#64748b',callback:(v)=>v>=1000?(v/1000)+'K':v}}}}});
+}
+document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>show(b.dataset.k));
+/* ?view=decode shows only the decode tabs, ?view=prefill only the prefill tab (default: all) */
+const VIEWS={decode:['dg','dp'],prefill:['pp']};   /* first entry is the tab shown by default */
+const keep=VIEWS[new URLSearchParams(location.search).get('view')]||['dg','dp','pp'];
+document.querySelectorAll('#tabs button').forEach(b=>{if(!keep.includes(b.dataset.k))b.style.display='none'});
+if(keep.length===1)document.getElementById('tabs').style.display='none';
+show(keep[0]);
+</script>
+</body>
+</html>

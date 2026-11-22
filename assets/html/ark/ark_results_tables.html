@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ark: results tables</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:#1e293b;background:transparent;padding:4px 4px 10px}
+  .wrap{max-width:980px;margin:0 auto;padding:4px 0}
+  .tabs{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-bottom:12px}
+  .tabs button{font:inherit;font-size:12px;border:1px solid #cbd5e1;background:#fff;border-radius:999px;padding:4px 12px;cursor:pointer;color:#1e293b}
+  .tabs button.on{background:#0f172a;color:#fff;border-color:#0f172a}
+  .scroll{overflow-x:auto}
+  table{border-collapse:collapse;width:100%;font-size:11.5px;font-variant-numeric:tabular-nums}
+  th,td{padding:5px 3.5px;text-align:center;white-space:nowrap}
+  thead th{font-weight:650;color:#334155;border-bottom:1.5px solid #334155}
+  thead tr.g th{border-bottom:1px solid #cbd5e1;font-size:11.5px}
+  tbody td{border-bottom:1px solid #eef2f7}
+  td.name{text-align:left;font-weight:500}
+  td.mem{color:#64748b}
+  tr.grp td{text-align:left;font-style:italic;color:#64748b;background:#fafbfc;font-size:11.5px}
+  tr.ark td{background:#f1ecff}
+  tr.ark td.name{font-weight:700;color:#5b3fc4}
+  td.best{font-weight:700}
+  td.second{text-decoration:underline;text-underline-offset:2px}
+  .cap{font-size:11.5px;color:#64748b;margin-top:10px;line-height:1.5;text-align:center}
+  body.dark .wrap{background:#fff;border-radius:14px;padding:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="tabs" id="tabs"></div>
+  <div class="scroll"><table id="t"></table></div>
+  <div class="cap" id="cap"></div>
+</div>
+<script>
+const MEM=['State','KV','Total'];
+const T={
+ lm:{name:'Language modeling (2B)',
+  groups:[['',4],['Memory (M)',3],['LAMBADA',2],['',6]],
+  cols:['Model','Params (M)','State','KV','Total','ppl ↓','acc','PIQA','Hella.','Wino.','ARC-e','ARC-c','Avg.'],
+  lower:[5], memcols:[2,3,4], skipBest:[1],
+  rows:[['g','Transformers'],['RoPE',2091,0,234.9,234.9,9.4,54.5,73.3,45.1,59.0,60.8,25.4,52.7],['NoPE',2091,0,234.9,234.9,16.6,45.1,70.1,42.2,54.1,55.8,26.2,49.7],['Gate (FoX)',2092,0,239.5,239.5,10.2,53.0,74.0,45.6,59.6,62.2,28.0,53.9],
+   ['g','Hybrids'],['GDN 1:4',2335,3.8,41.9,45.7,9.4,53.7,74.0,46.2,60.8,63.0,28.2,54.4],['GLA 1:4',2344,3.8,41.9,45.7,13.0,48.0,72.5,43.4,56.3,59.8,25.6,51.5],['GDN 1:6',2345,3.9,33.6,37.5,9.7,52.6,72.9,46.0,61.1,61.4,27.0,53.7],['GLA 1:6',2344,3.9,33.6,37.5,11.6,49.2,73.1,43.1,57.0,60.1,27.0,52.1],
+   ['Ark',2275,1.8,23.5,25.3,11.1,51.3,73.3,45.0,59.1,61.7,28.0,53.4]],
+  cap:'Zero-shot language modeling, ~2B models after 200B tokens. Memory: millions of stored elements at 8K context. Avg. is the mean of the five commonsense tasks. Ark is highlighted. Bold: best per column (smallest for memory); underlined: second best.'},
+ r400:{name:'Recall 400M',...recall([
+   ['g','Transformers'],['RoPE',340,0,101,101,42.3,21.5,22.1,100,0.0,0.0,100,0.0,0.0,47.6,0.0,0.0],['Gate (FoX)',376,0,104,104,52.5,64.3,30.1,100,32.2,8.0,100,100,24.0,85.6,64.2,11.6],['MLA',375,0,113,113,57.2,21.6,17.7,100,0.0,0.0,100,0.0,0.0,93.4,0.0,0.0],
+   ['g','Hybrids'],['GLA 1:4',396,1.2,21.0,22.2,51.4,71.4,29.8,100,100,100,100,93.6,15.2,8.6,6.6,0.4],['GDN 1:4',396,1.2,21.0,22.2,56.4,63.4,37.7,100,100,100,100,81.2,0.0,97.6,49.6,0.0],['GLA 1:6',397,1.3,16.8,18.1,48.8,62.5,32.3,100,83.6,0.2,99.8,96.2,0.0,10.8,28.4,0.0],['GDN 1:6',397,1.3,16.8,18.1,54.8,68.1,36.8,100,100,100,100,64.4,11.2,6.8,20.2,1.0],
+   ['Ark',374,0.4,10.1,10.5,53.8,71.9,30.5,100,100,100,100,89.9,3.4,70.1,81.8,1.5]],'~400M models, 15B tokens, trained at 2K context.')},
+ r800:{name:'Recall 800M',...recall([
+   ['g','Transformers'],['RoPE',693,0,151,151,58.9,63.6,41.3,92.4,90.8,0.0,99.6,99.2,0.0,33.4,9.0,0.0],['Gate (FoX)',694,0,156,156,64.9,80.0,41.5,100,100,99.0,100,100,67.4,83.2,63.8,0.2],['MLA',745,0,151,151,67.5,72.6,23.0,100,100,0.0,100,100,0.0,98.0,82.8,0.0],
+   ['g','Hybrids'],['GLA 1:4',741,2.0,25.2,27.1,54.6,64.6,34.7,100,93.2,37.4,99.6,88.8,4.6,86.0,65.2,0.8],['GDN 1:4',813,2.0,25.2,27.1,65.1,83.6,40.8,100,100,100,100,100,0.2,97.6,98.2,0.0],['GLA 1:6',743,2.1,18.9,21,48.3,52.9,36.2,100,83.6,3.8,99.6,63.8,9.8,19.0,2.6,0.4],['GDN 1:6',819,2.1,18.9,21,64.0,75.4,38.9,100,100,100,100,100,81.6,95.2,81.2,39.2],
+   ['Ark',770,0.6,15.1,15.7,65.1,81.3,39.1,100,100,100,100,100,17.8,99.8,99.6,10.2]],'~800M models, 32B tokens.')},
+ r2b:{name:'Recall 2B',...recall([
+   ['g','Transformers'],['RoPE',2091,0,234.9,234.9,77.2,73.0,51.5,96.4,93.6,91.2,100,100,90.8,99.2,98.4,73.0],['NoPE',2091,0,234.9,234.9,76.3,77.0,27.3,100,100,100,100,100,99.8,99.8,98.6,93.8],['Gate (FoX)',2092,0,239.5,239.5,80.5,75.3,52.2,100,100,100,100,100,97.4,99.2,93.2,73.0],
+   ['g','Hybrids'],['GLA 1:4',2344,3.8,41.9,45.7,72.3,78.3,44.9,100,100,98.8,100,100,88.2,99.4,89.0,76.6],['GDN 1:4',2335,3.8,41.9,45.7,77.8,81.2,53.2,100,100,100,100,98.8,97.8,99.4,88.2,72.0],['GLA 1:6',2344,3.9,33.6,37.5,75.1,76.3,44.2,100,99.8,94.0,100,100,92.6,96.2,94.0,70.8],['GDN 1:6',2345,3.9,33.6,37.5,81.2,79.5,50.4,100,100,100,100,99.8,97.6,100,99.2,94.0],
+   ['Ark',2275,1.8,23.5,25.3,78.0,79.5,51.9,100,100,99.0,100,100,99.4,92.2,88.4,71.4]],'~2B models, 200B tokens.')},
+ ruler:{name:'RULER & BABILong (2B)',
+  groups:[['',4],['VT',3],['CWE',3],['FWE',3],['QA-SQuAD',3],['QA-Hotpot',3],['BABILong',3]],
+  cols:['Model','State','KV','Total','2k','4k','8k','2k','4k','8k','2k','4k','8k','2k','4k','8k','2k','4k','8k','2k','4k','8k'],
+  memcols:[1,2,3],skipBest:[],
+  rows:[['g','Transformers'],['RoPE',0,234.9,234.9,79.0,3.1,11.0,27.5,46.7,12.2,58.3,22.7,3.2,36.0,34.2,28.4,32.6,30.6,30.8,29.2,21.6,7.1],['NoPE',0,234.9,234.9,60.2,55.4,53.6,38.6,37.0,16.9,55.5,49.3,49.7,33.7,30.7,26.7,30.8,27.2,27.6,31.9,23.0,15.4],['Gate (FoX)',0,239.5,239.5,56.6,47.7,25.2,27.3,46.3,23.5,29.2,3.1,0.0,32.3,35.4,25.8,30.6,32.4,28.4,34.2,27.1,20.6],
+   ['g','Hybrids'],['GDN 1:4',3.8,41.9,45.7,47.3,36.2,17.1,30.2,53.9,28.6,32.1,20.5,19.3,38.0,36.6,29.1,33.0,31.6,28.2,34.8,28.0,19.1],['GLA 1:4',3.8,41.9,45.7,19.5,3.0,4.6,40.1,34.5,8.7,46.9,44.5,41.0,31.9,29.5,21.0,28.8,25.2,22.4,25.8,13.1,3.7],['GDN 1:6',3.9,33.6,37.5,18.6,22.9,24.8,38.9,60.0,35.9,51.3,41.3,44.7,30.8,31.9,26.6,28.6,27.8,31.6,34.4,25.7,18.0],['GLA 1:6',3.9,33.6,37.5,3.5,1.2,0.0,32.1,27.9,3.4,36.3,16.0,6.9,34.7,34.8,23.5,28.4,28.0,25.4,22.4,14.5,4.0],
+   ['Ark',1.8,23.5,25.3,59.2,62.4,45.4,29.1,50.7,27.9,59.3,59.4,60.3,42.6,38.6,30.3,35.4,34.8,30.4,35.7,30.9,23.8]],
+  cap:'RULER variable tracking (VT), common/frequent-word extraction (CWE/FWE), SQuAD- and HotpotQA-based QA, and BABILong, accuracy (%). Ark is highlighted. Bold: best per column (smallest for memory); underlined: second best.'},
+ niah:{name:'Multi-item NIAH (2B)',
+  groups:[['',4],['MK1',3],['MK2',3],['MK3',3],['MV',3],['MQ',3]],
+  cols:['Model','State','KV','Total','2k','4k','8k','2k','4k','8k','2k','4k','8k','2k','4k','8k','2k','4k','8k'],
+  memcols:[1,2,3],skipBest:[],
+  rows:[['g','Transformers'],['RoPE',0,234.9,234.9,91.2,88.6,66.0,65.4,35.6,14.6,21.2,17.0,7.2,86.0,56.2,31.6,84.9,68.2,43.3],['NoPE',0,234.9,234.9,99.8,95.4,95.4,86.6,68.6,46.2,52.8,45.0,34.4,77.0,63.2,47.8,73.9,63.3,57.9],['Gate (FoX)',0,239.5,239.5,87.0,80.4,66.6,80.8,59.0,26.4,44.2,46.6,30.8,72.3,76.3,60.5,62.2,75.2,68.3],
+   ['g','Hybrids'],['GLA 1:4',3.8,41.9,45.7,66.6,73.0,50.8,44.4,34.4,12.6,32.0,29.2,11.0,78.4,38.8,26.8,84.5,57.2,32.5],['GDN 1:4',3.8,41.9,45.7,93.0,92.8,81.0,97.8,93.8,84.4,49.2,50.4,36.6,96.0,86.4,75.8,96.4,92.0,83.9],['GLA 1:6',3.9,33.6,37.5,87.6,80.2,60.4,51.8,28.4,10.2,14.4,10.8,0.8,36.6,23.1,20.7,59.5,34.8,23.2],['GDN 1:6',3.9,33.6,37.5,95.6,92.4,74.0,72.0,48.2,22.8,57.4,55.4,33.8,91.4,85.0,54.8,89.2,80.7,56.7],
+   ['Ark',1.8,23.5,25.3,98.0,94.2,87.6,50.2,33.0,15.6,58.0,55.5,27.8,92.9,88.2,41.5,87.1,81.2,75.0]],
+  cap:'RULER needle tasks with multiple keys (MK), values (MV) or queries (MQ), accuracy (%). These are the hardest cases for a fixed retention budget, and GDN hybrids lead on several of them.'},
+ qa:{name:'Open-book QA (2B)',
+  groups:[['',4],['',6]],
+  cols:['Model','State','KV','Total','TriviaQA','DROP','NQ@512','NQ@1024','NQ@2048','Avg.'],
+  memcols:[1,2,3],skipBest:[],
+  rows:[['g','Transformers'],['RoPE',0,234.9,234.9,64.5,25.3,33.2,31.9,29.5,40.4],['NoPE',0,234.9,234.9,59.2,21.5,29.1,27.3,27.9,36.3],['Gate (FoX)',0,239.5,239.5,63.8,20.9,31.7,32.3,31.7,38.9],
+   ['g','Hybrids'],['GLA 1:4',3.8,41.9,45.7,60.1,21.1,28.8,28.2,25.8,36.3],['GDN 1:4',3.8,41.9,45.7,64.9,25.4,32.0,31.2,31.6,40.6],['GLA 1:6',3.9,33.6,37.5,60.8,22.9,29.6,28.0,25.4,37.1],['GDN 1:6',3.9,33.6,37.5,63.4,24.8,35.6,33.5,34.1,40.9],
+   ['Ark',1.8,23.5,25.3,63.4,23.5,32.2,31.7,31.3,39.5]],
+  cap:'Open-book QA over real documents. NQ@n truncates the Natural Questions document to n tokens; Avg. averages TriviaQA, DROP and NQ (NQ first averaged over lengths).'}
+};
+function recall(rows,extra){return{
+  groups:[['',5],['Memory (M)',3],['Recall',3],['NIAH-1',3],['NIAH-2',3],['NIAH-3',3]],
+  cols:['Model','Params (M)','State','KV','Total','SWDE','FDA','SQuAD','2k','4k','8k','2k','4k','8k','2k','4k','8k'].filter((_,i)=>i!==99),
+  memcols:[2,3,4],skipBest:[1],rows,
+  cap:extra+' Recall-task and NIAH accuracy (%). Memory: millions of stored elements at 8K context. Ark is highlighted. Bold: best per column (smallest for memory); underlined: second best.'}}
+// fix group widths for recall tables (Model + Params = 2 columns)
+['r400','r800','r2b'].forEach(k=>T[k].groups=[['',2],['Memory (M)',3],['Recall',3],['NIAH-1',3],['NIAH-2',3],['NIAH-3',3]]);
+T.lm.groups=[['',2],['Memory (M)',3],['LAMBADA',2],['',6]];
+T.ruler.groups=[['',1],['Memory (M)',3],['VT',3],['CWE',3],['FWE',3],['QA-SQuAD',3],['QA-Hotpot',3],['BABILong',3]];
+T.niah.groups=[['',1],['Memory (M)',3],['MK1',3],['MK2',3],['MK3',3],['MV',3],['MQ',3]];
+T.qa.groups=[['',1],['Memory (M)',3],['Open-book QA accuracy (%)',6]];
+/* ?group=lm|recall|ruler|recall_ruler shows only that section's tables (default: all tabs) */
+const GROUPS={lm:['lm'],recall:['r400','r800','r2b'],ruler:['ruler','niah','qa'],recall_ruler:['r400','r800','r2b','ruler','niah','qa']};
+const keys=GROUPS[new URLSearchParams(location.search).get('group')]||Object.keys(T);
+const tabs=document.getElementById('tabs');
+keys.forEach(k=>{const b=document.createElement('button');b.textContent=T[k].name;b.dataset.k=k;b.onclick=()=>show(k);tabs.appendChild(b)});
+if(keys.length===1)tabs.style.display='none';
+function show(k){
+  const d=T[k];document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.k===k));
+  const data=d.rows.filter(r=>r[0]!=='g');
+  const nc=d.cols.length, best={}, second={};
+  for(let c=1;c<nc;c++){
+    if(d.skipBest.includes(c)) continue;
+    const vals=data.map(r=>r[c]);
+    const isMem=d.memcols.includes(c), low=(d.lower||[]).includes(c)||isMem;
+    /* best and second-best distinct values (memory columns: smallest wins, zero excluded) */
+    const u=[...new Set(vals.filter(v=>!(isMem&&v===0)))].sort((a,b)=>low?a-b:b-a);
+    best[c]=u[0]; if(u.length>1) second[c]=u[1];
+  }
+  let h='<thead><tr class="g">'+d.groups.map(([n,s])=>`<th colspan="${s}">${n}</th>`).join('')+'</tr><tr>'+d.cols.map((c,i)=>`<th${i===0?' style="text-align:left"':''}>${c}</th>`).join('')+'</tr></thead><tbody>';
+  d.rows.forEach(r=>{
+    if(r[0]==='g'){h+=`<tr class="grp"><td colspan="${nc}">${r[1]}</td></tr>`;return}
+    h+=`<tr class="${r[0]==='Ark'?'ark':''}">`+r.map((v,i)=>{
+      if(i===0) return `<td class="name">${v}</td>`;
+      const isMem=d.memcols.includes(i);
+      const b=best[i]!==undefined && v===best[i] && !(isMem&&v===0);
+      const s2=second[i]!==undefined && v===second[i] && !(isMem&&v===0);
+      return `<td class="${isMem?'mem':''}${b?' best':''}${s2?' second':''}">${typeof v==='number'?(Number.isInteger(v)&&!isMem&&i>1&&v!==100?v.toFixed(1):v):v}</td>`}).join('')+'</tr>';
+  });
+  document.getElementById('t').innerHTML=h+'</tbody>';
+  document.getElementById('cap').textContent=d.cap;
+  fit();
+}
+/* shrink the font just enough for wide tabs to fit the column (min 9px); narrower screens still scroll */
+function fit(){const t=document.getElementById('t'), box=t.closest('.scroll');
+  t.style.fontSize='';const base=parseFloat(getComputedStyle(t).fontSize);
+  if(t.scrollWidth>box.clientWidth+1){t.style.fontSize=Math.max(9,base*box.clientWidth/t.scrollWidth*0.98)+'px';
+    if(t.scrollWidth>box.clientWidth+1)t.style.fontSize=Math.max(9,parseFloat(t.style.fontSize)*box.clientWidth/t.scrollWidth*0.98)+'px'}}
+addEventListener('resize',fit);
+show(keys.includes('r2b')?'r2b':keys[0]);
+</script>
+<script>
+/* frameless on the light theme; on the dark theme keep a white panel behind the figure */
+(()=>{const dark=()=>{try{const t=parent.document.documentElement.getAttribute('data-theme');if(t)return t==='dark'}catch(e){}return matchMedia('(prefers-color-scheme: dark)').matches};
+ const set=()=>document.body.classList.toggle('dark',dark());set();
+ try{new MutationObserver(set).observe(parent.document.documentElement,{attributes:true,attributeFilter:['data-theme']})}catch(e){}})();
+</script>
+</body>
+</html>

@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ark: router score while reading a needle in a haystack</title>
+<style>
+  :root{--kv:#2E6DB4;--kv-bg:#E9F0FA;--kv-ink:#1d4f88;--st:#D9730D;--st-bg:#FCEBD7;--st-ink:#8a4304;
+    --label:#71717a;--line:#d4d4d8;--mono:"SF Mono",ui-monospace,Menlo,Consolas,monospace}
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:transparent}
+  body{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:#18181b;padding:4px 2px 6px}
+  .stage{position:relative;max-width:640px;margin:0 auto;padding:4px 2px}
+  .head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+  .ttl{font-size:12.5px;font-weight:700}
+  .ttl span{display:block;font-size:10.5px;font-weight:500;color:var(--label);margin-top:1px}
+  .lg{display:flex;gap:10px;font-size:10.5px;color:#52525b;align-items:center}
+  .lg i{display:inline-block;width:10px;height:10px;border-radius:3px;border:1px solid;margin-right:4px;vertical-align:-1px}
+  .cap{font-size:8px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--label);text-align:center}
+  .window{position:relative;height:30px;overflow:hidden;
+    -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 12%,#000 88%,transparent 100%);mask-image:linear-gradient(90deg,transparent 0,#000 12%,#000 88%,transparent 100%)}
+  .track{position:absolute;top:4px;left:0;display:flex;gap:5px;transition:transform .12s linear;will-change:transform}
+  .chip{font-family:var(--mono);font-weight:700;font-size:10.5px;line-height:1;padding:5px 6px;border-radius:6px;border:1px solid #d4d4d8;background:#f4f4f5;color:#3f3f46;white-space:nowrap;
+    transition:background-color .25s,border-color .25s,color .25s}
+  .chip .sp{opacity:.4;font-weight:400}
+  .chip.kv{background:var(--kv-bg);border-color:var(--kv);color:var(--kv-ink)}
+  .chip.st{background:var(--st-bg);border-color:#f0b47a;color:var(--st-ink)}
+  .chip.needle{box-shadow:0 0 0 2px rgba(46,109,180,.18)}
+  .headmark{position:absolute;left:50%;top:0;bottom:0;width:0;border-left:1.5px dashed #a1a1aa;transform:translateX(-.75px);z-index:2}
+  body.dark{color:#e4e4e7}
+  body.dark .ttl span,body.dark .lg,body.dark .cap{color:#a1a1aa}
+  body.dark .chip{background:#2a2a2e;border-color:#3f3f46;color:#a1a1aa}
+  body.dark .chip.st{background:#3a2a1a;border-color:#7a4a1c;color:#f2b880}
+  body.dark .chip.kv{background:#1c2f48;border-color:#7fb0ee;color:#cfe3fb}
+  body.dark .headmark{border-left-color:#71717a}
+  body.dark .ctrl button{background:#27272a;border-color:#3f3f46;color:#a1a1aa}
+  .plot{position:relative;height:150px;margin-top:6px}
+  canvas{width:100%;height:100%;display:block}
+  .ctrl{display:inline-flex;gap:3px;margin-left:4px}
+  .ctrl button{font:inherit;font-size:8px;color:var(--label);background:#fff;border:1px solid #e4e4e7;border-radius:999px;padding:1px 7px;cursor:pointer}
+</style>
+</head>
+<body>
+<div class="stage" id="stage">
+  <div class="head">
+    <div class="ttl">Router score while reading a needle in a haystack<span>layer 20 · KV group 3 · 8K-token prompt</span></div>
+    <div class="lg"><span><i style="background:var(--kv-bg);border-color:var(--kv)"></i>KV cache</span><span><i style="background:var(--st-bg);border-color:#f0b47a"></i>recurrent state</span>
+      <span class="ctrl"><button id="pause">Pause</button><button id="replay">Replay</button></span></div>
+  </div>
+  <div class="window" id="win"><div class="track" id="track"></div><div class="headmark"></div></div>
+  <div class="cap" style="margin-top:2px">Input stream</div>
+  <div class="plot"><canvas id="cv"></canvas></div>
+</div>
+<script>
+/* follow the site's light/dark theme (no frame, so the figure sits on the page) */
+function isDark(){try{const t=parent.document.documentElement.getAttribute('data-theme');if(t)return t==='dark'}catch(e){}return matchMedia('(prefers-color-scheme: dark)').matches}
+function applyTheme(){document.body.classList.toggle('dark',isDark());if(window.onTheme)onTheme()}
+applyTheme();
+try{new MutationObserver(applyTheme).observe(parent.document.documentElement,{attributes:true,attributeFilter:['data-theme']})}catch(e){}
+const D={"x":[16.0,32.0,48.0,64.0,80.0,96.0,112.0,128.0,144.0,160.0,176.0,192.0,208.0,224.0,240.0,256.0,272.0,288.0,304.0,320.0,336.0,352.0,368.0,384.0,400.0,416.0,432.0,448.0,464.0,480.0,496.0,512.0,528.0,544.0,560.0,576.0,592.0,608.0,624.0,640.0,656.0,672.0,688.0,704.0,720.0,736.0,752.0,768.0,784.0,800.0,816.0,832.0,848.0,864.0,880.0,896.0,912.0,928.0,944.0,960.0,976.0,992.0,1008.0,1024.0,1040.0,1056.0,1072.0,1088.0,1104.0,1120.0,1136.0,1152.0,1168.0,1184.0,1200.0,1216.0,1232.0,1248.0,1264.0,1280.0,1296.0,1312.0,1328.0,1344.0,1360.0,1376.0,1392.0,1408.0,1424.0,1440.0,1456.0,1472.0,1488.0,1504.0,1520.0,1536.0,1552.0,1568.0,1584.0,1600.0,1616.0,1632.0,1648.0,1664.0,1680.0,1696.0,1712.0,1728.0,1744.0,1760.0,1776.0,1792.0,1808.0,1824.0,1840.0,1856.0,1872.0,1888.0,1904.0,1920.0,1936.0,1952.0,1968.0,1984.0,2000.0,2016.0,2032.0,2048.0,2064.0,2080.0,2096.0,2112.0,2128.0,2144.0,2160.0,2176.0,2192.0,2208.0,2224.0,2240.0,2256.0,2272.0,2288.0,2304.0,2320.0,2336.0,2352.0,2368.0,2384.0,2400.0,2416.0,2432.0,2448.0,2464.0,2480.0,2496.0,2512.0,2528.0,2544.0,2560.0,2576.0,2592.0,2608.0,2624.0,2640.0,2656.0,2672.0,2688.0,2704.0,2720.0,2736.0,2752.0,2768.0,2784.0,2800.0,2816.0,2832.0,2848.0,2864.0,2880.0,2896.0,2912.0,2928.0,2944.0,2960.0,2976.0,2992.0,3008.0,3024.0,3040.0,3056.0,3072.0,3088.0,3104.0,3120.0,3136.0,3152.0,3168.0,3184.0,3200.0,3216.0,3232.0,3248.0,3264.0,3280.0,3296.0,3312.0,3328.0,3344.0,3360.0,3376.0,3392.0,3408.0,3424.0,3440.0,3456.0,3472.0,3488.0,3504.0,3520.0,3536.0,3552.0,3568.0,3584.0,3600.0,3616.0,3632.0,3648.0,3664.0,3680.0,3696.0,3712.0,3728.0,3744.0,3760.0,3776.0,3792.0,3808.0,3824.0,3840.0,3856.0,3872.0,3888.0,3904.0,3920.0,3936.0,3952.0,3968.0,3984.0,4000.0,4016.0,4032.0,4048.0,4064.0,4080.0,4096.0,4112.0,4128.0,4144.0,4160.0,4176.0,4192.0,4208.0,4224.0,4240.0,4256.0,4272.0,4288.0,4304.0,4320.0,4336.0,4352.0,4368.0,4384.0,4400.0,4416.0,4432.0,4448.0,4464.0,4480.0,4496.0,4512.0,4528.0,4544.0,4560.0,4576.0,4592.0,4608.0,4624.0,4640.0,4656.0,4672.0,4688.0,4704.0,4720.0,4736.0,4752.0,4768.0,4784.0,4800.0,4816.0,4832.0,4848.0,4864.0,4880.0,4896.0,4912.0,4928.0,4944.0,4960.0,4976.0,4992.0,5008.0,5024.0,5040.0,5056.0,5072.0,5088.0,5104.0,5120.0,5136.0,5152.0,5168.0,5184.0,5200.0,5216.0,5232.0,5248.0,5264.0,5280.0,5296.0,5312.0,5328.0,5344.0,5360.0,5376.0,5392.0,5408.0,5424.0,5440.0,5456.0,5472.0,5488.0,5504.0,5520.0,5536.0,5552.0,5568.0,5584.0,5600.0,5616.0,5632.0,5648.0,5664.0,5680.0,5696.0,5712.0,5728.0,5744.0,5760.0,5776.0,5792.0,5808.0,5824.0,5840.0,5856.0,5872.0,5888.0,5904.0,5920.0,5936.0,5952.0,5968.0,5984.0,6000.0,6016.0,6032.0,6048.0,6064.0,6080.0,6096.0,6112.0,6128.0,6144.0,6160.0,6176.0,6192.0,6208.0,6224.0,6240.0,6256.0,6272.0,6288.0,6304.0,6320.0,6336.0,6352.0,6368.0,6384.0,6400.0,6416.0,6432.0,6448.0,6464.0,6480.0,6496.0,6512.0,6528.0,6544.0,6560.0,6576.0,6592.0,6608.0,6624.0,6640.0,6656.0,6672.0,6688.0,6704.0,6720.0,6736.0,6752.0,6768.0,6784.0,6800.0,6816.0,6832.0,6848.0,6864.0,6880.0,6896.0,6912.0,6928.0,6944.0,6960.0,6976.0,6992.0,7008.0,7024.0,7040.0,7056.0,7072.0,7088.0,7104.0,7120.0,7136.0,7152.0,7168.0,7184.0,7200.0,7216.0,7232.0,7248.0,7264.0,7280.0,7296.0,7312.0,7328.0,7344.0,7360.0,7376.0,7392.0,7408.0,7424.0,7440.0,7456.0,7472.0,7488.0,7504.0,7520.0,7536.0,7552.0,7568.0,7584.0,7600.0,7616.0,7632.0,7648.0,7664.0,7680.0,7696.0,7712.0,7728.0,7744.0,7760.0,7776.0,7792.0,7808.0,7824.0,7840.0,7856.0,7872.0,7888.0,7904.0,7920.0,7936.0,7952.0,7968.0,7984.0,8000.0,8016.0,8032.0,8048.0,8064.0,8080.0,8096.0,8112.0,8128.0,8144.0,8160.0,8176.0,8188.0],"y":[0.898,0.4683,0.3863,0.2795,0.2088,0.2139,0.1952,0.1775,0.185,0.1832,0.1723,0.1819,0.1832,0.1723,0.1807,0.1855,0.1737,0.1825,0.1889,0.1746,0.1833,0.1902,0.1753,0.1845,0.1916,0.1753,0.1842,0.1923,0.1752,0.1838,0.1919,0.1742,0.1838,0.1924,0.1747,0.1825,0.1917,0.1729,0.1819,0.19,0.1727,0.181,0.1897,0.1714,0.1788,0.1874,0.1693,0.1778,0.1859,0.1678,0.1761,0.1844,0.1689,0.1756,0.1832,0.1669,0.1716,0.1814,0.1644,0.1713,0.1806,0.1629,0.1696,0.1777,0.1609,0.1675,0.1768,0.1605,0.1655,0.1748,0.1587,0.1636,0.1734,0.1558,0.1607,0.17,0.1539,0.1592,0.1674,0.1516,0.1568,0.1663,0.1504,0.1547,0.1642,0.1493,0.1531,0.1635,0.1481,0.1522,0.1621,0.1465,0.1503,0.16,0.1444,0.1473,0.1579,0.1431,0.1463,0.1565,0.1421,0.1458,0.1556,0.1405,0.1431,0.1533,0.1389,0.1406,0.1512,0.1379,0.1394,0.1496,0.136,0.1376,0.1482,0.1345,0.136,0.146,0.1324,0.1343,0.1438,0.1314,0.1326,0.1426,0.1295,0.1309,0.1403,0.1277,0.1288,0.139,0.1271,0.1277,0.1382,0.1258,0.1252,0.1361,0.1237,0.1236,0.1338,0.1227,0.1217,0.1324,0.1216,0.1206,0.1305,0.1197,0.1191,0.1292,0.1187,0.1174,0.1281,0.1171,0.116,0.1257,0.1161,0.1138,0.1242,0.114,0.1127,0.1219,0.113,0.1109,0.1218,0.1113,0.1101,0.1196,0.1106,0.1084,0.1183,0.1091,0.1081,0.1167,0.1078,0.1059,0.1159,0.1069,0.1048,0.1143,0.1059,0.1033,0.1125,0.1045,0.1023,0.112,0.1044,0.1009,0.1104,0.1032,0.0998,0.109,0.1015,0.0983,0.1079,0.1011,0.0971,0.1065,0.0995,0.0965,0.1055,0.0986,0.0946,0.1042,0.0975,0.0937,0.1029,0.0961,0.0919,0.1011,0.0955,0.0911,0.1005,0.0944,0.09,0.0994,0.0929,0.089,0.0979,0.0916,0.0879,0.0966,0.091,0.0867,0.0956,0.0903,0.0866,0.0945,0.0893,0.085,0.0938,0.0884,0.084,0.0924,0.0876,0.0832,0.0915,0.0872,0.0827,0.0907,0.0861,0.0814,0.0903,0.0855,0.0804,0.0887,0.0846,0.0796,0.0882,0.0844,0.0787,0.087,0.0831,0.0782,0.0862,0.0821,0.0778,0.8121,0.2744,0.1592,0.1309,0.1101,0.0994,0.102,0.0929,0.0855,0.092,0.0856,0.0792,0.0865,0.0813,0.0756,0.0836,0.079,0.0738,0.0821,0.078,0.0726,0.0808,0.0769,0.0714,0.0799,0.0761,0.0707,0.0789,0.0759,0.0701,0.0787,0.0752,0.0699,0.0782,0.0748,0.0691,0.0775,0.0746,0.0687,0.0772,0.0739,0.0683,0.0769,0.074,0.0684,0.0762,0.0734,0.0676,0.0757,0.0729,0.0671,0.0756,0.072,0.0666,0.0747,0.0717,0.0658,0.0743,0.0708,0.0656,0.0734,0.0703,0.0651,0.073,0.0701,0.0644,0.0724,0.07,0.0645,0.0723,0.0698,0.0641,0.0717,0.0692,0.0635,0.0717,0.0684,0.0634,0.0707,0.0686,0.0629,0.0705,0.0677,0.0627,0.07,0.0674,0.0622,0.0692,0.0671,0.0617,0.0693,0.0668,0.0612,0.0687,0.0665,0.0608,0.0687,0.0664,0.0608,0.0677,0.0664,0.0604,0.0672,0.0656,0.0596,0.0672,0.0648,0.0598,0.0668,0.065,0.0595,0.0661,0.0646,0.0589,0.0657,0.0641,0.0589,0.0657,0.0639,0.0585,0.0654,0.0639,0.0585,0.0653,0.0633,0.0575,0.0645,0.0632,0.0575,0.0643,0.063,0.0573,0.064,0.0626,0.0571,0.0639,0.0624,0.0574,0.0635,0.0622,0.0566,0.0633,0.0618,0.0562,0.0627,0.0614,0.0563,0.0626,0.0611,0.0558,0.062,0.0611,0.0559,0.062,0.0607,0.0555,0.0618,0.0603,0.0552,0.0613,0.06,0.0547,0.0611,0.0601,0.0544,0.0611,0.0596,0.0544,0.0606,0.0595,0.0542,0.0603,0.0593,0.0539,0.0599,0.059,0.0537,0.0598,0.0587,0.0536,0.0596,0.0586,0.0531,0.0595,0.0585,0.0531,0.0591,0.0582,0.0531,0.0588,0.0581,0.0524,0.0587,0.0578,0.0523,0.0585,0.0572,0.0519,0.0583,0.0574,0.0521,0.0581,0.0573,0.0519,0.0579,0.057,0.0515,0.0577,0.0571,0.0516,0.0575,0.0566,0.0516,0.0576,0.0569,0.0514,0.0568,0.0565,0.0513,0.0576,0.0564,0.051,0.0574,0.0564,0.0508,0.0569,0.0562,0.0508,0.0569,0.0558,0.0507,0.0567,0.0559,0.0505,0.0567,0.0559,0.0506,0.0565,0.0559,0.0502,0.0566,0.0555,0.05,0.0565,0.0554,0.05,0.0559,0.0557,0.05,0.0562,0.0551,0.0499,0.0561,0.0552,0.0499,0.056,0.0489],"needle":255,"n":8192,"ns":4088,"ne":4104,"local0":3888,"local":[0.055,0.12,0.073,0.011,0.116,0.034,0.139,0.063,0.016,0.119,0.04,0.094,0.111,0.011,0.064,0.293,0.174,0.034,0.104,0.079,0.09,0.038,0.026,0.126,0.055,0.121,0.072,0.011,0.113,0.034,0.139,0.062,0.015,0.119,0.041,0.093,0.11,0.011,0.063,0.296,0.173,0.034,0.105,0.079,0.088,0.038,0.025,0.127,0.055,0.118,0.073,0.011,0.113,0.034,0.138,0.063,0.015,0.119,0.04,0.093,0.11,0.011,0.062,0.291,0.178,0.033,0.104,0.078,0.09,0.038,0.025,0.124,0.054,0.118,0.072,0.011,0.113,0.034,0.141,0.063,0.015,0.119,0.04,0.093,0.11,0.011,0.063,0.294,0.17,0.033,0.102,0.078,0.086,0.038,0.025,0.125,0.054,0.118,0.072,0.011,0.113,0.034,0.139,0.062,0.015,0.116,0.04,0.091,0.11,0.01,0.062,0.29,0.17,0.033,0.102,0.078,0.088,0.038,0.025,0.124,0.053,0.116,0.071,0.011,0.113,0.034,0.139,0.061,0.015,0.118,0.039,0.091,0.108,0.01,0.062,0.289,0.17,0.033,0.102,0.077,0.088,0.038,0.025,0.125,0.053,0.116,0.072,0.011,0.111,0.033,0.138,0.061,0.015,0.114,0.039,0.091,0.108,0.01,0.061,0.289,0.169,0.032,0.101,0.077,0.088,0.037,0.024,0.123,0.053,0.114,0.072,0.011,0.111,0.033,0.135,0.06,0.015,0.116,0.039,0.09,0.108,0.01,0.062,0.285,0.17,0.033,0.101,0.076,0.089,0.038,0.025,0.123,0.053,0.116,0.071,0.011,0.111,0.034,0.137,0.06,0.899,0.818,0.97,0.886,0.926,0.816,0.779,0.877,0.793,0.639,0.683,0.93,0.879,0.467,0.784,0.848,0.248,0.66,0.336,0.314,0.332,0.05,0.438,0.186,0.228,0.254,0.065,0.267,0.247,0.101,0.174,0.489,0.427,0.107,0.224,0.158,0.191,0.113,0.07,0.238,0.099,0.219,0.111,0.034,0.166,0.045,0.242,0.104,0.047,0.166,0.053,0.154,0.16,0.033,0.108,0.38,0.261,0.047,0.154,0.111,0.133,0.064,0.036,0.186,0.082,0.179,0.093,0.021,0.139,0.04,0.185,0.08,0.031,0.141,0.045,0.126,0.14,0.023,0.089,0.348,0.231,0.038,0.134,0.098,0.113,0.054,0.03,0.161,0.076,0.159,0.089,0.016,0.127,0.037,0.16,0.068,0.023,0.127,0.042,0.113,0.129,0.018,0.077,0.329,0.213,0.034,0.119,0.089,0.102,0.049,0.027,0.142,0.071,0.146,0.082,0.014,0.118,0.034,0.149,0.065,0.019,0.119,0.04,0.104,0.123,0.016,0.072,0.317,0.202,0.032,0.108,0.085,0.095,0.047,0.026,0.134,0.07,0.137,0.078,0.013,0.111,0.033,0.137,0.062,0.017,0.114,0.038,0.097,0.118,0.015,0.068,0.309,0.192,0.03,0.104,0.085,0.093,0.044,0.024,0.126,0.067,0.129,0.074,0.012,0.108,0.032,0.134,0.06,0.016,0.11,0.038,0.095,0.116,0.014,0.065,0.301,0.188,0.029,0.098,0.083,0.088,0.041,0.023,0.119,0.065,0.124,0.074,0.012,0.102,0.032,0.13,0.059,0.015,0.107,0.037,0.09,0.113,0.013,0.063,0.298,0.182,0.028,0.094,0.08,0.085,0.04,0.022,0.116,0.064,0.121,0.072,0.011,0.098,0.031,0.126,0.058],"first":[0.997,0.985,0.975,0.942,0.998,0.933,0.989,0.887]};
+const N=D.n, NS=D.ns, NE=D.ne, CEN=(NS+NE)/2, TAU=.5;
+const HAY="The grass is green . The sky is blue . The sun is yellow . Here we go . There and back again .".split(' ');
+const NEEDLE=["One","·of","·the","·special","·magic","·numbers","·is","·7","7","4","9","."];
+const needleAt={};NEEDLE.forEach((w,i)=>needleAt[NS+Math.round(i*(NE-NS-1)/(NEEDLE.length-1))]=w);
+const keepAt=p=>{
+  if(p<D.first.length) return D.first[p];
+  const l=p-D.local0; if(l>=0&&l<D.local.length) return D.local[l];
+  // group value for the far haystack
+  let lo=0,hi=D.x.length-1;while(lo<hi){const m=(lo+hi)>>1;if(D.x[m]<p)lo=m+1;else hi=m}return D.y[lo];
+};
+/* cursor speed (tokens/s): fast through the haystack, slowing down around the needle */
+const vel=p=>{const d=Math.abs(p-CEN)/260;return 6+2400*Math.min(1,d*d)};
+/* pre-compute the chip schedule so the stream and the plot stay in lockstep */
+function schedule(){
+  const out=[{p:0,t:0,w:'<s>'}];let p=0,t=0,lastT=0,lastP=0,h=0;const dt=1/120;
+  while(p<N-1){
+    p=Math.min(N-1,p+vel(p)*dt);t+=dt;
+    const ip=Math.floor(p);
+    for(let q=lastP+1;q<=ip;q++){
+      if(needleAt[q]){out.push({p:q,t,w:needleAt[q],needle:1});lastT=t;}
+      else if(t-lastT>=.11 && !(q>=NS&&q<NE)){out.push({p:q,t,w:(()=>{const x=HAY[h%HAY.length];return x==='.'?'.':'·'+x})(),});h++;lastT=t;break;}
+    }
+    lastP=ip;
+  }
+  return out;
+}
+const S=schedule(), TOTAL=S[S.length-1].t+.6;
+const track=document.getElementById('track'),win=document.getElementById('win');
+let chips=[],cur=-1,t0=null,paused=false,pausedAt=0,ended=false;
+const esc=w=>w.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+function chipHTML(w){return w.startsWith('·')?`<span class="sp">·</span>${esc(w.slice(1))}`:esc(w)}
+function build(){track.innerHTML='';chips=S.map(s=>{const c=document.createElement('span');c.className='chip';c.innerHTML=chipHTML(s.w==='.'?'.':s.w);track.appendChild(c);return c});cur=-1;center(0,false)}
+function center(i,anim=true){const c=chips[i];if(!c)return;const x=win.clientWidth/2-(c.offsetLeft+c.offsetWidth/2);track.style.transition=anim?'':'none';track.style.transform=`translateX(${x}px)`;if(!anim){void track.offsetWidth;track.style.transition=''}}
+
+/* ---------- plot ---------- */
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+let W=0,H=0;const P={l:34,r:12,t:10,b:24};
+function size(){const r=cv.getBoundingClientRect(),d=window.devicePixelRatio||1;cv.width=r.width*d;cv.height=r.height*d;ctx.setTransform(d,0,0,d,0,0);W=r.width;H=r.height}
+let C={}; function pal(){const d=document.body.classList.contains('dark');C=d?{tick:'#a1a1aa',axis:'#3f3f46',thr:'#71717a',line:'#a1a1aa',blue:'#7fb0ee',lab:'#cfe3fb',cur:'#e4e4e7',band:'rgba(127,176,238,.18)',fill:'rgba(242,163,92,.10)'}:{tick:'#71717a',axis:'#e4e4e7',thr:'#a1a1aa',line:'#6b7280',blue:'#2E6DB4',lab:'#1d4f88',cur:'#18181b',band:'rgba(46,109,180,.14)',fill:'rgba(217,115,13,.08)'}}
+const X=p=>P.l+(W-P.l-P.r)*p/N, Y=v=>P.t+(H-P.t-P.b)*(1-v);
+function draw(p){
+  ctx.clearRect(0,0,W,H);
+  ctx.font='10px -apple-system,Segoe UI,Roboto,sans-serif';pal();ctx.fillStyle=C.tick;ctx.strokeStyle=C.axis;ctx.lineWidth=1;
+  [0,.5,1].forEach(v=>{ctx.textAlign='right';ctx.fillText(v===0?'0':v===1?'1':'0.5',P.l-6,Y(v)+3)});
+  ctx.beginPath();ctx.moveTo(P.l,Y(0));ctx.lineTo(W-P.r,Y(0));ctx.stroke();
+  [0,2048,4096,6144,8192].forEach(v=>{ctx.textAlign='center';ctx.fillText(v?v/1024+'K':'0',X(v),H-8)});
+  ctx.save();ctx.translate(10,(P.t+H-P.b)/2);ctx.rotate(-Math.PI/2);ctx.textAlign='center';ctx.fillText('keep score',0,0);ctx.restore();
+  // threshold
+  ctx.setLineDash([4,4]);ctx.strokeStyle=C.thr;ctx.beginPath();ctx.moveTo(P.l,Y(TAU));ctx.lineTo(W-P.r,Y(TAU));ctx.stroke();ctx.setLineDash([]);
+  ctx.textAlign='right';ctx.fillStyle=C.thr;ctx.fillText('threshold',W-P.r,Y(TAU)-4);
+  // needle band once reached
+  if(p>=NS){ctx.fillStyle=C.band;ctx.fillRect(X(NS)-3,P.t,6+X(NE)-X(NS),H-P.t-P.b)}
+  // score curve up to the cursor (area + line)
+  const xs=D.x,ys=D.y;let k=0;
+  ctx.beginPath();ctx.moveTo(X(0),Y(0));
+  for(;k<xs.length&&xs[k]<=p;k++)ctx.lineTo(X(xs[k]),Y(ys[k]));
+  const yc=k<xs.length?ys[Math.max(0,k-1)]:ys[ys.length-1];
+  ctx.lineTo(X(p),Y(yc));ctx.lineTo(X(p),Y(0));ctx.closePath();ctx.fillStyle=C.fill;ctx.fill();
+  ctx.beginPath();for(let i=0;i<k;i++){const x=X(xs[i]),y=Y(ys[i]);i?ctx.lineTo(x,y):ctx.moveTo(x,y)}ctx.lineTo(X(p),Y(yc));
+  ctx.strokeStyle=C.line;ctx.lineWidth=1.3;ctx.lineJoin='round';ctx.stroke();
+  // highlight the parts above the threshold in blue
+  ctx.strokeStyle=C.blue;ctx.lineWidth=2;
+  for(let i=1;i<k;i++)if(ys[i]>TAU||ys[i-1]>TAU){ctx.beginPath();ctx.moveTo(X(xs[i-1]),Y(ys[i-1]));ctx.lineTo(X(xs[i]),Y(ys[i]));ctx.stroke()}
+  // needle annotation
+  if(p>=xs[D.needle]){const x=X(xs[D.needle]),y=Y(ys[D.needle]);
+    ctx.fillStyle=C.blue;ctx.beginPath();ctx.arc(x,y,4,0,7);ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=1.5;ctx.stroke();
+    ctx.font='700 10.5px -apple-system,Segoe UI,Roboto,sans-serif';ctx.textAlign='left';ctx.fillStyle=C.lab;ctx.fillText(`needle (${ys[D.needle].toFixed(2)})`,x+8,y+3)}
+  // cursor
+  ctx.strokeStyle=C.cur;ctx.lineWidth=1;ctx.globalAlpha=.35;ctx.beginPath();ctx.moveTo(X(p),P.t);ctx.lineTo(X(p),Y(0));ctx.stroke();ctx.globalAlpha=1;
+}
+function cursorAt(t){let i=0;while(i+1<S.length&&S[i+1].t<=t)i++;if(i+1>=S.length)return{i,p:N};const a=S[i],b=S[i+1];return{i,p:a.p+(b.p-a.p)*Math.min(1,(t-a.t)/Math.max(1e-6,b.t-a.t))}}
+function frame(ts){
+  if(t0===null)t0=ts;
+  if(!paused){
+    const t=(ts-t0)/1000;
+    if(t>TOTAL+2.2){t0=ts;build();}
+    else{
+      const {i,p}=cursorAt(Math.min(t,TOTAL));
+      while(cur<i){cur++;const k=keepAt(S[cur].p);chips[cur].classList.add(k>TAU?'kv':'st');if(S[cur].needle)chips[cur].classList.add('needle');center(cur)}
+      draw(Math.min(N,p));
+    }
+  }
+  requestAnimationFrame(frame);
+}
+document.getElementById('pause').onclick=e=>{paused=!paused;e.target.textContent=paused?'Play':'Pause';if(paused)pausedAt=performance.now();else t0+=performance.now()-pausedAt};
+document.getElementById('replay').onclick=()=>{paused=false;document.getElementById('pause').textContent='Pause';t0=null;build()};
+window.addEventListener('resize',()=>{size();center(Math.max(cur,0),false)});
+size();build();requestAnimationFrame(frame);
+</script>
+</body>
+</html>

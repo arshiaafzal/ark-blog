@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ark: packed attention</title>
+<style>
+  :root{--kv:#2E6DB4;--kv-bg:#E9F0FA;--kv-ink:#1d4f88;--st:#D9730D;--st-bg:#FCEBD7;--st-bd:#f0b47a;--st-ink:#8a4304;--mono:"SF Mono",ui-monospace,Menlo,Consolas,monospace}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:#1e293b;background:transparent;padding:4px 2px 6px}
+  .wrap{max-width:680px;margin:0 auto;padding:4px 0}
+  body.dark .wrap{background:#fff;border-radius:14px;padding:14px}
+
+  .head{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+  .ttl{font-size:11.5px;font-weight:600;color:#475569}
+  .hint{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--kv-ink);background:var(--kv-bg);border:1px solid #bcd3ee;border-radius:999px;padding:3px 10px;margin-left:8px;animation:nudge 1.6s ease-in-out infinite}
+  .hint.done{animation:none;color:#64748b;background:#f1f5f9;border-color:#e2e8f0;font-weight:500}
+  @keyframes nudge{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}
+  .pills{display:flex;gap:4px;background:#f1f5f9;border-radius:999px;padding:3px}
+  .pills button{font:inherit;font-size:11px;border:0;background:transparent;border-radius:999px;padding:3px 10px;cursor:pointer;color:#475569}
+  .pills button:hover{background:#fff;color:#0f172a}
+
+  /* token row: the clickable routing mask */
+  .row{display:grid;grid-template-columns:28px repeat(16,minmax(0,1fr));gap:4px;align-items:center}
+  .lab{font-size:10px;color:#94a3b8;font-family:var(--mono);text-align:right;padding-right:4px}
+  .tok{position:relative;font-family:var(--mono);font-weight:700;font-size:11px;height:28px;border-radius:6px;border:1.5px solid var(--st-bd);background:var(--st-bg);color:var(--st-ink);
+    display:flex;align-items:center;justify-content:center;cursor:pointer;user-select:none;transition:transform .15s,box-shadow .15s,background-color .2s,border-color .2s,color .2s}
+  .tok.kv{background:var(--kv-bg);border-color:var(--kv);color:var(--kv-ink)}
+  .tok:hover{transform:translateY(-3px);box-shadow:0 0 0 3px rgba(46,109,180,.22),0 4px 8px rgba(15,23,42,.12)}
+  .tok.wave{animation:wave 1.2s ease-in-out}
+  @keyframes wave{0%,100%{transform:translateY(0)}35%{transform:translateY(-4px);box-shadow:0 0 0 3px rgba(46,109,180,.25)}}
+  .cnt{font-family:var(--mono);font-size:10px;color:#94a3b8;text-align:center;height:16px;line-height:16px}
+  .cnt.up{color:var(--kv);font-weight:700}
+  .slot{font-family:var(--mono);font-size:10px;font-weight:700;height:22px;border-radius:5px;display:flex;align-items:center;justify-content:center}
+  .slot.on{background:var(--kv);color:#fff}
+  .slot.off{border:1px dashed #e2e8f0}
+  .cursor{position:absolute;font-size:18px;pointer-events:none;opacity:0;transition:opacity .25s,transform .5s ease;z-index:5}
+
+  .panels{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:22px;margin-top:14px;align-items:start}
+  .ph{font-size:11.5px;font-weight:600;color:#475569;margin:0 0 6px 2px}
+  .ph b{color:#0f172a}
+  .g{display:grid;gap:1px;max-width:230px}
+  .g div{aspect-ratio:1/1;border-radius:1.5px}
+  .tl{display:grid;gap:4px}
+  .tile{border-radius:5px;display:grid;gap:1px;padding:2px;border:1.5px solid}
+  .tile div{border-radius:1.5px;aspect-ratio:1/1}
+  .tile.skip{border-color:#e2e8f0;background:#fafafa}
+  .tile.int{border-color:var(--kv);background:#eef4fb}
+  .tile.bnd{border-color:var(--st);background:#fff6ec}
+  .legend{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;font-size:11px;color:#64748b;margin-top:10px}
+  .legend span{display:inline-flex;gap:5px;align-items:center}
+  .legend i{width:11px;height:11px;border-radius:3px;display:inline-block;border:1.5px solid}
+  @media(max-width:560px){.panels{grid-template-columns:1fr}.row{grid-template-columns:20px repeat(16,minmax(0,1fr));gap:2px}.tok{font-size:9px}.hint{margin:4px 0 0}}
+</style>
+</head>
+<body>
+<div class="wrap" id="wrap">
+  <div class="head">
+    <div><span class="ttl">Routing mask → packed KV cache</span><span class="hint" id="hint">👆 click tokens to route them</span></div>
+    <div class="pills"><button id="ex">Paper example</button><button id="rnd">Random</button><button id="clr">Clear</button></div>
+  </div>
+  <div class="row" id="rTok"></div>
+  <div class="row" id="rCnt"></div>
+  <div class="row" id="rSlot" style="margin-top:2px"></div>
+  <div class="cursor" id="cursor">👆</div>
+
+  <div class="panels">
+    <div><div class="ph" id="h1"></div><div class="g" id="full"></div></div>
+    <div><div class="ph" id="h2"></div><div id="tiles"></div></div>
+  </div>
+  <div class="legend">
+    <span><i style="border-color:var(--kv);background:#eef4fb"></i>interior: no mask</span>
+    <span><i style="border-color:var(--st);background:#fff6ec"></i>boundary: masked</span>
+    <span><i style="border-color:#e2e8f0;background:#fafafa"></i>future: skipped</span>
+  </div>
+</div>
+<script>
+const T=16, BQ=4, BK=2, $=id=>document.getElementById(id);
+let r=new Array(T).fill(0);[0,2,10,13].forEach(i=>r[i]=1);
+let touched=false;
+function row(id,label,cells){$(id).innerHTML=`<div class="lab">${label}</div>`+cells.join('')}
+function render(){
+  const c=[];let acc=0;for(let t=0;t<T;t++){acc+=r[t];c.push(acc)}
+  const N=acc, packed=r.map((x,j)=>x?j:-1).filter(j=>j>=0);
+  row('rTok','t',r.map((x,t)=>`<div class="tok ${x?'kv':''}" data-t="${t}" title="position ${t}: ${x?'KV cache':'recurrent state'} (click to toggle)">${t}</div>`));
+  row('rCnt','c(t)',c.map((x,t)=>`<div class="cnt ${r[t]?'up':''}">${x}</div>`));
+  row('rSlot','KV',[...Array(T)].map((_,n)=>n<N?`<div class="slot on" title="slot ${n}: key from position ${packed[n]}, stored with L(${packed[n]})">${packed[n]}</div>`:`<div class="slot off"></div>`));
+  document.querySelectorAll('.tok').forEach(e=>e.onclick=()=>{r[+e.dataset.t]^=1;firstTouch();render()});
+  // full causal grid
+  const f=$('full');f.style.gridTemplateColumns=`repeat(${T},1fr)`;f.innerHTML='';
+  for(let t=0;t<T;t++)for(let j=0;j<T;j++){const d=document.createElement('div');d.style.background=j>t?'#f3f4f6':(r[j]?'#9fc0e6':'#f6d7b5');f.appendChild(d)}
+  // packed tiles
+  const nKT=Math.max(1,Math.ceil(N/BK)), nQT=T/BQ, grid=document.createElement('div');
+  grid.className='tl';grid.style.gridTemplateColumns=`repeat(${nKT},minmax(0,${BK*18}px))`;
+  let skipped=0,computed=0;
+  for(let qi=0;qi<nQT;qi++)for(let kj=0;kj<nKT;kj++){
+    const t0=qi*BQ,t1=t0+BQ-1,n0=kj*BK,n1=Math.min(N,n0+BK)-1;
+    const tile=document.createElement('div');tile.className='tile';tile.style.gridTemplateColumns=`repeat(${BK},1fr)`;
+    const cls=(N===0||n0>=c[t1])?'skip':(n1>=c[t0]?'bnd':'int');
+    tile.classList.add(cls);if(cls==='skip')skipped++;else computed+=BQ*BK;
+    for(let t=t0;t<=t1;t++)for(let n=n0;n<n0+BK;n++){const d=document.createElement('div');
+      d.style.background=n>=N?'transparent':cls==='skip'?'#eef0f3':(n<c[t]?'#2E6DB4':'#e5e7eb');tile.appendChild(d)}
+    tile.title=`queries ${t0}–${t1} × slots ${n0}–${n1}: ${cls==='skip'?'skipped':cls==='bnd'?'boundary, masked':'interior, no mask'}`;
+    grid.appendChild(tile);
+  }
+  $('tiles').innerHTML='';$('tiles').appendChild(grid);
+  $('h1').innerHTML=`All 16 keys · <b>${T*(T+1)/2}</b> scores`;
+  $('h2').innerHTML=`Packed · <b>${computed}</b> scores · ${skipped}/${nQT*nKT} tiles skipped`;
+}
+function firstTouch(){if(touched)return;touched=true;const h=$('hint');h.classList.add('done');h.textContent='click any token to toggle'}
+$('ex').onclick=()=>{r.fill(0);[0,2,10,13].forEach(i=>r[i]=1);firstTouch();render()};
+$('rnd').onclick=()=>{do{r=r.map(()=>Math.random()<.10?1:0)}while(r.reduce((a,b)=>a+b,0)<2);firstTouch();render()};
+$('clr').onclick=()=>{r.fill(0);firstTouch();render()};
+render();
+
+/* make the interactivity obvious: a wave across the tokens, then a ghost click that flips one and flips it back */
+const sleep=ms=>new Promise(res=>setTimeout(res,ms));
+async function demo(){
+  const toks=[...document.querySelectorAll('.tok')];
+  toks.forEach((t,i)=>setTimeout(()=>{t.classList.add('wave');setTimeout(()=>t.classList.remove('wave'),1200)},i*45));
+  await sleep(1300);if(touched)return;
+  const target=document.querySelector('.tok[data-t="6"]'), cur=$('cursor'), w=$('wrap').getBoundingClientRect(), b=target.getBoundingClientRect();
+  cur.style.left=(b.left-w.left+b.width/2-6)+'px';cur.style.top=(b.top-w.top+b.height-4)+'px';cur.style.transform='translateY(14px)';cur.style.opacity='1';
+  await sleep(60);cur.style.transform='translateY(0)';await sleep(550);if(touched){cur.style.opacity='0';return}
+  r[6]=1;render();await sleep(1500);if(touched){cur.style.opacity='0';return}
+  r[6]=0;render();cur.style.opacity='0';
+}
+new IntersectionObserver((es,o)=>{if(es.some(e=>e.isIntersecting)){o.disconnect();setTimeout(demo,500)}},{threshold:.5}).observe($('rTok'));
+</script>
+<script>
+/* frameless on the light theme; on the dark theme keep a white panel behind the figure */
+(()=>{const dark=()=>{try{const t=parent.document.documentElement.getAttribute('data-theme');if(t)return t==='dark'}catch(e){}return matchMedia('(prefers-color-scheme: dark)').matches};
+ const set=()=>document.body.classList.toggle('dark',dark());set();
+ try{new MutationObserver(set).observe(parent.document.documentElement,{attributes:true,attributeFilter:['data-theme']})}catch(e){}})();
+</script>
+</body>
+</html>

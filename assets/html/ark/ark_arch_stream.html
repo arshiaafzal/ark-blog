@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ark block: routing a token stream into two memories</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<style>
+  :root{
+    --ink:#18181b; --label:#71717a; --line:#d4d4d8; --panel-border:#e4e4e7; --soft:#f7f7f8; --box:#e4e4e7;
+    --kv:#2E6DB4; --kv-bg:#E9F0FA; --kv-ink:#1d4f88;
+    --st:#D9730D; --st-bg:#FCEBD7; --st-ink:#8a4304;
+    --lav:#a78bfa; --lav-bg:#efeaff; --lav-ink:#4c3bcf;
+    --route-color:#94a3b8; --route-glow:rgba(148,163,184,.35);
+    --mono:"SF Mono",ui-monospace,Menlo,Consolas,monospace;
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:transparent}
+  body{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--ink);padding:4px 2px 6px}
+  .stage{position:relative;max-width:392px;margin:0 auto;background:#fff;border:1px solid #ececef;border-radius:14px;padding:10px 26px 8px}
+  .cap{font-size:8px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--label);text-align:center}
+  #over{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:0}
+  #over path{fill:none;stroke:#c4c4ca;stroke-width:1.3}
+  #over text{font-size:6.5px;font-weight:700;letter-spacing:.18em;fill:#a1a1aa}
+  .col{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center}
+
+  /* ---------- JT-style block rows ---------- */
+  .wire{width:1.5px;background:var(--line);margin:0 auto;flex:none}
+  .pill{font-size:7.5px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:#52525b;background:#f1f1f3;border-radius:999px;padding:3px 10px}
+  .box{width:212px;min-width:0;text-align:center;font-size:9.5px;font-weight:600;color:#52525b;background:#fafafa;border:1px solid var(--box);border-radius:6px;padding:2.5px 6px;
+    position:relative;overflow:hidden;transition:border-color .25s,color .25s,background-color .25s}
+  .op.lit,.pill.lit{background:var(--lav-bg);color:var(--lav-ink);box-shadow:0 0 0 3px rgba(167,139,250,.18)}
+  .pill{transition:all .25s}
+  .box.mlp{background:#ebf6ef;border-color:#cfe9d8;color:#2f6f4f}
+  .box.lit{background:var(--lav-bg);border-color:var(--lav);color:var(--lav-ink)}
+  .box.lit::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.75),transparent);animation:sweep .5s ease}
+  @keyframes sweep{from{transform:translateX(-100%)}to{transform:translateX(100%)}}
+  .op{width:15px;height:15px;border-radius:50%;background:#fff;border:1.2px solid #b4b4bb;display:flex;align-items:center;justify-content:center;font-size:9.5px;line-height:1;color:#3f3f46;transition:all .25s;flex:none}
+  .op.n{font-size:7px;font-weight:700;background:#fff7ed;border-color:#f3c99c;color:#9a5a12}
+  .op.lit{border-color:var(--lav);background:var(--lav-bg);color:var(--lav-ink);box-shadow:0 0 0 3px rgba(167,139,250,.18)}
+  .k{font-size:9px}
+  .duo{display:flex;align-items:center;gap:5px}
+
+  /* projections row */
+  .projrow{position:relative;width:100%;display:flex;justify-content:center}
+  .proj{width:212px}
+  .tags{display:flex;justify-content:space-between;width:212px;padding:0 2px;margin-bottom:1px}
+  .tag{font-size:8.5px;color:#52525b;display:flex;flex-direction:column;align-items:center;gap:1px}
+  .tag i{display:block;width:1.2px;height:5px;background:var(--line)}
+  .lora{border:1px dashed #8f78e6;color:#6a52c8;border-radius:4px;font-size:6px;font-weight:700;padding:0 3px;letter-spacing:.04em}
+  .gate{position:absolute;right:0;top:3px;display:flex;flex-direction:column;align-items:center}
+  .gate .box{width:auto;min-width:0;padding:2.5px 7px;font-size:9px}
+
+  /* ---------- Ark mixer frame ---------- */
+  .mixer{position:relative;width:auto;align-self:center;border:1.2px solid #dcd3fb;background:#fcfbff;border-radius:11px;padding:6px 8px 26px}
+  .mtag{position:absolute;left:8px;top:5px;font-size:8.5px;font-weight:700;color:#6a52c8;letter-spacing:.02em}
+  .readout{width:150px;margin:0 auto}
+  .feed{display:block;width:100%;height:12px;overflow:visible}
+  .feed path{fill:none;stroke-width:1.5;transition:stroke .25s,opacity .25s;opacity:.55}
+  .feed path.on{opacity:1;stroke-width:2}
+
+  /* memories */
+  .mems{display:grid;grid-template-columns:auto auto;justify-content:center;gap:8px}
+  .panel{border:1.2px solid var(--panel-border);background:#fff;border-radius:9px;padding:5px 5px 6px;display:flex;flex-direction:column;align-items:center;transition:border-color .25s}
+  #cachePanel.hot{border-color:var(--kv)}
+  #statePanel.hot{border-color:var(--st)}
+  .panel .title{font-size:10px;font-weight:700;margin:0 0 3px;color:#27272a}
+  .rule{font-size:8.5px;padding:1.5px 6px;border-radius:6px;background:var(--soft);border:1px solid #ececef;color:#3f3f46;margin-bottom:5px;transition:all .25s}
+  #cachePanel.hot .rule{background:var(--kv-bg);border-color:var(--kv);color:var(--kv-ink);box-shadow:0 0 0 2px rgba(46,109,180,.12)}
+  #statePanel.hot .rule{background:var(--st-bg);border-color:var(--st);color:var(--st-ink);box-shadow:0 0 0 2px rgba(217,115,13,.12)}
+  .cache{display:flex;flex-wrap:wrap;align-content:center;justify-content:center;gap:4px;width:118px;flex:1}
+  .cache .chip.ghost{visibility:hidden}
+
+  /* hidden state: Raven matrix, orange */
+  .mat-outer{position:relative;padding:4px;background:#fff;border-radius:7px;border:1.5px solid #e2e8f0;
+    box-shadow:0 8px 14px -4px rgba(0,0,0,.08),0 4px 6px -4px rgba(0,0,0,.08);transition:border-color .3s, box-shadow .3s}
+  .mat-outer.hot{border-color:var(--st);box-shadow:0 0 12px rgba(217,115,13,.35),0 8px 14px -4px rgba(0,0,0,.08)}
+  .container-size{width:64px;height:64px;position:relative}
+  .matrix-grid{display:grid;grid-template-rows:repeat(8,1fr);gap:1.5px;width:100%;height:100%}
+  .matrix-row{display:grid;grid-template-columns:repeat(8,1fr);gap:1.5px;border-radius:2px;position:relative}
+  .cell{border-radius:1.5px;background-color:#f1f5f9;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.05);transition:background-color .45s ease}
+  .row-forget-overlay{position:absolute;inset:0;background:linear-gradient(to right,rgba(255,255,255,.7),rgba(241,245,249,.2));opacity:0;transition:opacity .25s ease;pointer-events:none;border-radius:2px;z-index:2}
+  .row-forget-overlay.active{opacity:1}
+  .incoming{position:absolute;inset:4px;opacity:0;transform:scale(.35) translateY(60%);transition:transform .35s cubic-bezier(.34,1.56,.64,1),opacity .22s ease;pointer-events:none;z-index:3}
+  .incoming .cell{box-shadow:none}
+
+  /* fork + router */
+  .fork{display:block;width:100%;height:16px;overflow:visible}
+  .fork path{fill:none;stroke:var(--line);stroke-width:1.5;transition:stroke .2s}
+  .fork path.on{stroke:var(--route-color);stroke-width:2;stroke-dasharray:4 5;animation:dash .6s linear infinite}
+  @keyframes dash{to{stroke-dashoffset:18}}
+  .router-wrap{display:flex;align-items:center;justify-content:center;gap:5px}
+  .router-text{font-size:6.5px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.02em;transition:color .2s;width:34px;text-align:right}
+  .router-wrap .spacer{width:34px}
+  .router-node{width:24px;height:24px;border-radius:50%;background:#fff;border:1.5px solid #cbd5e1;display:flex;align-items:center;justify-content:center;
+    color:#64748b;transition:all .25s ease;position:relative;z-index:20}
+  .router-node svg{width:12px;height:12px}
+  .router-node.computing{border-color:var(--route-color);color:var(--route-color);box-shadow:0 0 12px var(--route-glow);transform:scale(1.1)}
+  .router-node.computing::after{content:'';position:absolute;inset:-4px;border-radius:50%;border:1.5px dashed var(--route-color);animation:spin 1.6s linear infinite}
+  @keyframes spin{100%{transform:rotate(360deg)}}
+
+  /* ---------- input stream (bottom) ---------- */
+  .window{position:relative;width:100%;height:26px;overflow:hidden;
+    -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 14%,#000 86%,transparent 100%);
+            mask-image:linear-gradient(90deg,transparent 0,#000 14%,#000 86%,transparent 100%)}
+  .track{position:absolute;top:3px;left:0;display:flex;gap:5px;transition:transform .3s cubic-bezier(.4,0,.2,1);will-change:transform}
+  .chip{font-family:var(--mono);font-weight:700;font-size:9px;line-height:1;padding:4px 5px;border-radius:5px;border:1px solid;white-space:nowrap;
+    background:#f4f4f5;border-color:#d4d4d8;color:#3f3f46;
+    transition:background-color .22s ease,border-color .22s ease,color .22s ease,opacity .3s ease}
+  .chip .sp{opacity:.4;font-weight:400}
+  .chip.kv{background:var(--kv-bg);border-color:var(--kv);color:var(--kv-ink)}
+  .chip.st{background:var(--st-bg);border-color:var(--st);color:var(--st-ink)}
+  .track .chip.kv,.track .chip.st{opacity:.75}
+  .chip.cur{opacity:0!important}
+  .fly{position:absolute;z-index:50;pointer-events:none;box-shadow:0 4px 10px rgba(24,24,27,.14);
+    transition:transform .4s cubic-bezier(.4,0,.2,1),opacity .2s ease,background-color .22s ease,border-color .22s ease,color .22s ease}
+
+  .ctrl{position:absolute;right:8px;bottom:6px;display:flex;gap:3px;z-index:5}
+  .ctrl button{font:inherit;font-size:7.5px;color:var(--label);background:#fff;border:1px solid #e4e4e7;border-radius:999px;padding:1px 6px;cursor:pointer}
+  .ctrl button:hover{background:var(--soft)}
+  @media (max-width:400px){.stage{padding:8px 20px}}
+
+  /* ---------- full model stack (left) ---------- */
+  .wrapall{position:relative;display:flex;align-items:center;justify-content:center;gap:44px;max-width:700px;margin:0 auto}
+  .wrapall>.stage{flex:none;width:392px;margin:0}
+  #zoom{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:2}
+  .model{position:relative;z-index:1;flex:none;width:196px;background:#fff;border:1px solid #ececef;border-radius:14px;padding:10px 12px 8px;display:flex;flex-direction:column;align-items:center}
+  .model .mbox{width:150px;text-align:center;font-size:9.5px;font-weight:600;color:#52525b;background:#fafafa;border:1px solid var(--box);border-radius:6px;padding:2.5px 6px;position:relative;overflow:hidden;transition:all .25s}
+  .model .mbox.mlp{background:#ebf6ef;border-color:#cfe9d8;color:#2f6f4f}
+  .model .mbox.ark{background:var(--lav-bg);border-color:var(--lav);color:var(--lav-ink);font-weight:700}
+  .layer{position:relative;width:100%;border:1.2px solid #e4e4e7;border-radius:10px;padding:16px 8px 6px 18px;display:flex;flex-direction:column;align-items:center;background:#fdfdfd}
+  .ltag{position:absolute;left:8px;top:4px;font-size:8px;font-weight:700;color:#3f3f46}
+  .layer .mbox{width:132px}
+  .vdots{font-size:11px;line-height:8px;color:#a1a1aa;letter-spacing:0;margin:1px 0}
+  .tchips{display:flex;gap:3px;margin-top:2px}
+  .tchips .chip{font-size:7.5px;padding:2.5px 4px;border-radius:4px}
+  #mover path{fill:none;stroke:#c4c4ca;stroke-width:1.2}
+  #mover text{font-size:5.5px;font-weight:700;letter-spacing:.18em;fill:#a1a1aa}
+  @media (max-width:680px){.wrapall{flex-direction:column;gap:14px}#zoom{display:none}}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrapall" id="wrapall">
+<svg id="zoom"></svg>
+<div class="model" id="model">
+  <svg id="mover" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:3"></svg>
+  <div class="pill" id="mNext">Next token</div>
+  <div class="wire" style="height:6px"></div>
+  <div class="mbox" id="mVocab">Vocabulary scores</div>
+  <div class="wire" style="height:6px"></div>
+  <div class="mbox" id="mLN">Ark Layer N</div>
+  <div class="vdots">⋮</div>
+  <div class="mbox" id="mL2">Ark Layer 2</div>
+  <div class="wire" style="height:6px"></div>
+  <div class="layer" id="layer1">
+    <span class="ltag">Ark Layer 1</span>
+    <div class="op" id="mAdd2">+</div>
+    <div class="wire" style="height:5px"></div>
+    <div class="mbox mlp" id="mMLP">Gated MLP</div>
+    <div class="wire" style="height:5px"></div>
+    <div class="mbox" id="mNorm2">RMSNorm</div>
+    <div class="wire" style="height:8px" id="mBr2"></div>
+    <div class="op" id="mAdd1">+</div>
+    <div class="wire" style="height:5px"></div>
+    <div class="mbox ark" id="mArk">Ark Block</div>
+    <div class="wire" style="height:5px"></div>
+    <div class="mbox" id="mNorm1">RMSNorm</div>
+    <div class="wire" style="height:8px" id="mBr1"></div>
+  </div>
+  <div class="wire" style="height:6px"></div>
+  <div class="mbox" id="mEmb">Token embedding</div>
+  <div class="wire" style="height:6px"></div>
+  <div class="tchips"><span class="chip">The</span><span class="chip"><span class="sp">·</span>secret</span><span class="chip"><span class="sp">·</span>code</span><span class="chip">…</span></div>
+  <div class="cap" style="margin-top:3px">Input tokens</div>
+</div>
+<div class="stage" id="stage">
+  <svg id="over"></svg>
+  <div class="col">
+    <div class="pill" id="outPill">Output</div>
+    <div class="wire" style="height:6px"></div>
+    <div class="box" id="oproj">Output projection</div>
+    <div class="wire" style="height:4px"></div>
+    <div class="op" id="mul">×</div>
+    <div class="wire" style="height:3px"></div>
+    <div class="op n" id="onorm">N</div>
+    <div class="wire" style="height:4px"></div>
+
+    <div class="mixer" id="mixer">
+      <span class="mtag">Ark Mixer</span>
+      <div class="box readout" id="readout">Readout <span style="font-weight:500;opacity:.75">· shared normalizer</span></div>
+      <svg class="feed" id="feed"><path id="fL" stroke="#2E6DB4"/><path id="fR" stroke="#D9730D"/></svg>
+      <div class="mems">
+        <div class="panel" id="cachePanel">
+          <div class="title">KV Cache</div>
+          <div class="rule" id="ruleKV"></div>
+          <div class="cache" id="cache"></div>
+        </div>
+        <div class="panel" id="statePanel">
+          <div class="title">Recurrent State</div>
+          <div class="rule" id="ruleST"></div>
+          <div class="mat-outer" id="matOuter">
+            <div class="container-size"><div class="matrix-grid" id="memGrid"></div></div>
+            <div class="incoming" id="incoming"><div class="matrix-grid" id="inGrid"></div></div>
+          </div>
+        </div>
+      </div>
+      <svg class="fork" id="fork"><path id="pL"/><path id="pR"/></svg>
+      <div class="router-wrap">
+        <span class="router-text" id="router-text">Router</span>
+        <div class="router-node" id="router-node">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>
+        </div>
+        <span class="spacer"></span>
+      </div>
+      
+    </div>
+
+    <div class="wire" style="height:8px"></div>
+    <div class="projrow">
+      <div style="display:flex;flex-direction:column;align-items:center;width:100%">
+        <div class="tags" id="tags">
+          <span class="tag r"><span class="k" data-tex="s_t"></span><i></i></span>
+          <span class="tag"><span class="k" data-tex="f_t"></span><i></i></span>
+          <span class="tag"><span class="k" data-tex="v_t"></span><i></i></span>
+          <span class="tag"><span class="k" data-tex="q_t,\,k_t"></span><i></i></span>
+          <span class="tag"><span class="k" data-tex="\tilde q_t,\,\tilde k_t"></span><span class="lora">LoRA</span></span>
+        </div>
+        <div class="box proj" id="proj">Linear projections · QK-RMSNorm</div>
+      </div>
+      <div class="gate" id="gateCol">
+        <div class="op" id="swish" style="font-size:12px">σ</div>
+        <div class="wire" style="height:4px"></div>
+        <div class="box" id="gproj">Gate</div>
+      </div>
+    </div>
+    <div class="wire" style="height:9px"></div>
+    <div class="box" id="norm1">RMSNorm</div>
+    <div class="wire" style="height:10px"></div>
+    <div class="window" id="window"><div class="track" id="track"></div></div>
+    <div class="cap" style="margin-top:2px">Input stream</div>
+  </div>
+  <div class="ctrl"><button id="pause">Pause</button><button id="replay">Replay</button></div>
+</div>
+</div>
+
+<script>
+/* sample stream: [token, 1 = KV cache, 0 = hidden state] */
+const TOKENS=[["The",0],["·secret",0],["·code",0],["·is",0],["·OM",1],["EGA",1],[".",1],
+              ["·Rain",0],["·falls",0],["·on",0],["·the",0],["·hills",0],[".",0]];
+const N=8, KV='#2E6DB4', ST='#D9730D', NEUTRAL='#94a3b8', ST_HUE=28;
+const T={shift:260, toRouter:420, think:200, decide:110, toMem:340, merge:300, settle:70};
+
+const $=id=>document.getElementById(id);
+const track=$('track'), win=$('window'), stage=$('stage');
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+let chips=[], memCells=[], memRows=[], inCells=[], state=[], paused=false, runId=0;
+
+function tex(){
+  if(!window.katex){setTimeout(tex,100);return}
+  katex.render(String.raw`C_t = C_{t-1} \cup \{(k_t,\, v_t)\}`,$('ruleKV'),{throwOnError:false});
+  katex.render(String.raw`S_t = f_t\, S_{t-1} + \phi(\tilde k_t)\, v_t^{\top}`,$('ruleST'),{throwOnError:false});
+  document.querySelectorAll('[data-tex]').forEach(e=>katex.render(e.dataset.tex,e,{throwOnError:false}));
+  setTimeout(layout,50);
+}
+function chipHTML(t){return t.startsWith('·')?`<span class="sp">·</span>${t.slice(1)}`:t}
+function makeChip(i){const c=document.createElement('span');c.className='chip';c.innerHTML=chipHTML(TOKENS[i][0]);return c}
+function hsl2rgb(h,s,l){s/=100;l/=100;const k=n=>(n+h/30)%12,a=s*Math.min(l,1-l),f=n=>l-a*Math.max(-1,Math.min(k(n)-3,Math.min(9-k(n),1)));return[255*f(0),255*f(8),255*f(4)]}
+const rgb=a=>`rgb(${a.map(Math.round).join(',')})`;
+function rel(el){const a=el.getBoundingClientRect(),b=stage.getBoundingClientRect();return{x:a.left-b.left,y:a.top-b.top,w:a.width,h:a.height}}
+function setRoute(hex){document.documentElement.style.setProperty('--route-color',hex);document.documentElement.style.setProperty('--route-glow',hex+'59')}
+
+/* fork, feeds and the gate branch are drawn from the live layout */
+function layout(){
+  const f=$('fork'),w=f.clientWidth,mid=w/2,a=rel($('cachePanel')),b=rel($('statePanel')),o=rel(f);
+  const xl=a.x+a.w/2-o.x, xr=b.x+b.w/2-o.x;
+  const H=f.clientHeight,hm=H/2;f.setAttribute('viewBox',`0 0 ${w} ${H}`);
+  $('pL').setAttribute('d',`M${mid},${H} V${hm+6} Q${mid},${hm} ${mid-6},${hm} H${xl+6} Q${xl},${hm} ${xl},${hm-6} V0`);
+  $('pR').setAttribute('d',`M${mid},${H} V${hm+6} Q${mid},${hm} ${mid+6},${hm} H${xr-6} Q${xr},${hm} ${xr},${hm-6} V0`);
+  const fd=$('feed'),fw=fd.clientWidth,fo=rel(fd),ro=rel($('readout'));
+  const rl=ro.x-fo.x+ro.w*.22, rr=ro.x-fo.x+ro.w*.78;
+  const FH=fd.clientHeight,fm=FH/2;fd.setAttribute('viewBox',`0 0 ${fw} ${FH}`);
+  $('fL').setAttribute('d',`M${xl},${FH} V${fm+4} Q${xl},${fm} ${xl+4},${fm} H${rl-4} Q${rl},${fm} ${rl},${fm-4} V0`);
+  $('fR').setAttribute('d',`M${xr},${FH} V${fm+4} Q${xr},${fm} ${xr-4},${fm} H${rr+4} Q${rr},${fm} ${rr},${fm-4} V0`);
+  // overlay: skips (left) and gate (right)
+  const S=rel(stage), sv=$('over'); sv.setAttribute('viewBox',`0 0 ${S.w} ${S.h}`);
+  const cx=S.w/2, r=6;
+  const g=rel($('swish')), m=rel($('mul')), rx=S.w-12, gy=g.y+g.h/2, my=m.y+m.h/2;
+  const n1=rel($('norm1')), pj=rel($('proj')), gp=rel($('gproj')), wy=(n1.y+pj.y+pj.h)/2, gcx=gp.x+gp.w/2;
+  sv.innerHTML=`<path d="M${cx},${wy} H${gcx-r} Q${gcx},${wy} ${gcx},${wy-r} V${gp.y+gp.h}"/>
+    <path d="M${g.x+g.w},${gy} H${rx-r} Q${rx},${gy} ${rx},${gy-r} V${my+r} Q${rx},${my} ${rx-r},${my} H${m.x+m.w}"/>
+    <text transform="translate(${rx+5},${(gy+my)/2}) rotate(90)" text-anchor="middle">OUTPUT GATE</text>`;
+  // left: residual skips inside the opened layer
+  const M=$('model').getBoundingClientRect(), mr=el=>{const a=el.getBoundingClientRect();return{x:a.left-M.left,y:a.top-M.top,w:a.width,h:a.height}};
+  const L=mr($('layer1')), lx2=L.x+9, q=5;
+  const sk=(br,add)=>{const b=mr($(br)),a=mr($(add)),y0=b.y+b.h/2,y1=a.y+a.h/2,cx2=a.x+a.w/2;
+    return `<path d="M${cx2},${y0} H${lx2+q} Q${lx2},${y0} ${lx2},${y0-q} V${y1+q} Q${lx2},${y1} ${lx2+q},${y1} H${a.x}"/>`};
+  $('mover').setAttribute('viewBox',`0 0 ${M.width} ${M.height}`);
+  $('mover').innerHTML=sk('mBr1','mAdd1')+sk('mBr2','mAdd2');
+  // zoom wedge: the Ark Block row opens into the detailed block on the right
+  const W=$('wrapall').getBoundingClientRect(), wr=el=>{const a=el.getBoundingClientRect();return{x:a.left-W.left,y:a.top-W.top,w:a.width,h:a.height}};
+  const src=wr($('mArk')), dst=wr(stage), zx=src.x+src.w, z=$('zoom');
+  z.setAttribute('viewBox',`0 0 ${W.width} ${W.height}`);
+  z.innerHTML=getComputedStyle($('zoom')).display==='none'?'':`<path d="M${zx},${src.y} L${dst.x},${dst.y+6} L${dst.x},${dst.y+dst.h-6} L${zx},${src.y+src.h} Z" fill="rgba(167,139,250,.10)" stroke="none"/>
+    <path d="M${zx},${src.y} L${dst.x},${dst.y+6} M${zx},${src.y+src.h} L${dst.x},${dst.y+dst.h-6}" stroke="#a78bfa" stroke-width="1.2" stroke-dasharray="4 4" fill="none"/>`;
+}
+function build(){
+  track.innerHTML='';chips=TOKENS.map((_,i)=>{const c=makeChip(i);track.appendChild(c);return c});
+  $('cache').innerHTML='';
+  const mg=$('memGrid'),ig=$('inGrid');mg.innerHTML='';ig.innerHTML='';memCells=[];memRows=[];inCells=[];state=[];
+  for(let r=0;r<N;r++){
+    const row=document.createElement('div');row.className='matrix-row';
+    const ov=document.createElement('div');ov.className='row-forget-overlay';row.appendChild(ov);
+    const irow=document.createElement('div');irow.className='matrix-row';
+    for(let c=0;c<N;c++){
+      const cell=document.createElement('div');cell.className='cell';
+      const v=hsl2rgb(ST_HUE,30+20*Math.random(),92+4*Math.random());state.push(v);cell.style.backgroundColor=rgb(v);row.appendChild(cell);memCells.push(cell);
+      const ic=document.createElement('div');ic.className='cell';irow.appendChild(ic);inCells.push(ic);
+    }
+    mg.appendChild(row);memRows.push(row);ig.appendChild(irow);
+  }
+  setRoute(NEUTRAL);center(0,false);layout();
+}
+function center(i,anim=true){
+  const c=chips[i];if(!c)return;
+  const x=win.clientWidth/2-(c.offsetLeft+c.offsetWidth/2);
+  track.style.transition=anim?'':'none';track.style.transform=`translateX(${x}px)`;
+  if(!anim){void track.offsetWidth;track.style.transition=''}
+}
+async function moveTo(el,t,ms){el.style.transitionDuration=`${ms}ms,.2s,.22s,.22s,.22s`;el.style.transform=`translate(${t.x-el.__x}px,${t.y-el.__y}px)`;await sleep(ms)}
+async function waitIfPaused(id){while(paused&&id===runId)await sleep(100)}
+function flash(el){el.classList.remove('lit');void el.offsetWidth;el.classList.add('lit');setTimeout(()=>el.classList.remove('lit'),420)}
+async function lightInput(){for(const id of ['norm1','proj'])flash($(id)),await sleep(60)}
+/* JT-style sweep up the output path after every token (runs in parallel with the next token) */
+async function sweepOut(){
+  for(const id of ['readout','onorm','mul','oproj','outPill']){
+    if(id==='mul')flash($('swish'));
+    flash($(id));await sleep(55);
+  }
+}
+
+async function step(i,id){
+  const toCache=TOKENS[i][1]===1, cls=toCache?'kv':'st', col=toCache?KV:ST;
+  center(i);await sleep(T.shift);if(id!==runId)return;
+  const chip=chips[i], r0=rel(chip);
+  const fly=chip.cloneNode(true);fly.classList.add('fly');fly.style.left=r0.x+'px';fly.style.top=r0.y+'px';fly.__x=r0.x;fly.__y=r0.y;stage.appendChild(fly);
+  chip.classList.add('cur');lightInput();
+  const rn=rel($('router-node'));
+  await moveTo(fly,{x:rn.x+rn.w/2-r0.w/2,y:rn.y+rn.h+5},T.toRouter);if(id!==runId){fly.remove();return}
+  setRoute(NEUTRAL);$('router-node').classList.add('computing');
+  await sleep(T.think);await waitIfPaused(id);if(id!==runId){fly.remove();return}
+  setRoute(col);$('router-text').style.color=col;fly.classList.add(cls);
+  const path=$(toCache?'pL':'pR');path.classList.add('on');
+  $(toCache?'cachePanel':'statePanel').classList.add('hot');
+  await sleep(T.decide);
+  if(toCache){
+    const ghost=makeChip(i);ghost.classList.add(cls,'ghost');$('cache').appendChild(ghost);
+    const rs=rel(ghost);
+    await moveTo(fly,{x:rs.x,y:rs.y},T.toMem);if(id!==runId){fly.remove();return}
+    ghost.classList.remove('ghost');fly.remove();
+  }else{
+    const rm=rel($('matOuter'));
+    await moveTo(fly,{x:rm.x+rm.w/2-r0.w/2,y:rm.y+rm.h-r0.h+4},T.toMem);if(id!==runId){fly.remove();return}
+    const a=[...Array(N)].map(()=>Math.random()**1.6), b=[...Array(N)].map(()=>Math.random()**1.6);
+    const inc=[],wt=[];
+    for(let k=0;k<N*N;k++){const w=a[Math.floor(k/N)]*b[k%N];wt.push(w);const v=hsl2rgb(ST_HUE,85,88-40*w);inc.push(v);inCells[k].style.backgroundColor=rgb(v)}
+    fly.style.opacity='0';
+    $('matOuter').classList.add('hot');
+    memRows.forEach(r=>r.querySelector('.row-forget-overlay').classList.add('active'));
+    const inEl=$('incoming');inEl.style.opacity='1';inEl.style.transform='scale(1) translateY(0)';
+    await sleep(T.merge);if(id!==runId){fly.remove();return}
+    memRows.forEach(r=>r.querySelector('.row-forget-overlay').classList.remove('active'));
+    for(let k=0;k<N*N;k++){const g=.06+.5*wt[k];const m=state[k].map((v,j)=>v*(1-g)+inc[k][j]*g);state[k]=m;memCells[k].style.backgroundColor=rgb(m)}
+    inEl.style.opacity='0';
+    await sleep(180);inEl.style.transition='none';inEl.style.transform='scale(.35) translateY(60%)';void inEl.offsetWidth;inEl.style.transition='';
+    fly.remove();
+  }
+  // every query reads both memories -> readout -> gated output -> residual -> MLP
+  $('fL').classList.add('on');$('fR').classList.add('on');sweepOut();
+  chip.classList.remove('cur');chip.classList.add(cls);
+  $('router-node').classList.remove('computing');$('router-text').style.color='';setRoute(NEUTRAL);
+  path.classList.remove('on');$('cachePanel').classList.remove('hot');$('statePanel').classList.remove('hot');$('matOuter').classList.remove('hot');
+  await sleep(T.settle);$('fL').classList.remove('on');$('fR').classList.remove('on');await waitIfPaused(id);
+}
+async function run(){
+  const id=++runId;stage.style.opacity='1';build();await sleep(400);
+  while(id===runId){
+    for(let i=0;i<TOKENS.length&&id===runId;i++){await waitIfPaused(id);await step(i,id)}
+    if(id!==runId)return;
+    await sleep(1800);if(id!==runId)return;
+    stage.style.transition='opacity .35s';stage.style.opacity='0';await sleep(350);build();stage.style.opacity='1';await sleep(350);
+  }
+}
+$('pause').onclick=()=>{paused=!paused;$('pause').textContent=paused?'Play':'Pause'};
+$('replay').onclick=()=>{paused=false;$('pause').textContent='Pause';document.querySelectorAll('.fly').forEach(e=>e.remove());run()};
+window.addEventListener('resize',()=>{layout();const i=chips.findIndex(c=>!c.classList.contains('kv')&&!c.classList.contains('st'));center(i<0?chips.length-1:i,false)});
+tex();
+run();
+</script>
+<script>
+/* phones: the diagram has fixed-width parts; scale it down to the frame instead of clipping */
+(function(){function fit(){document.body.style.zoom='';const need=Math.max(...[...document.querySelectorAll('.stage')].map(e=>e.scrollWidth))+8, have=window.innerWidth;
+  if(need>have+1)document.body.style.zoom=(have/need).toFixed(3)}
+addEventListener('load',fit);addEventListener('resize',fit);setTimeout(fit,300)})();
+</script>
+</body>
+</html>

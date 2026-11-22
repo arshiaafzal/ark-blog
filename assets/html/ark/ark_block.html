@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ark mixer</title>
+<style>
+  :root{--kv:#2E6DB4;--kv-bg:#E9F0FA;--st:#D9730D;--st-bg:#FCEBD7;--ink:#1e293b;--muted:#64748b}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--ink);background:transparent;padding:4px 4px 10px}
+  .wrap{max-width:980px;margin:0 auto;background:#fff;border:1px solid #e5e9f0;border-radius:14px;padding:16px 14px} /* ark-card */
+  svg{width:100%;height:auto;display:block}
+  svg text{font-family:inherit}
+  .pill{fill:#fff;stroke:#94a3b8;stroke-width:1.3}
+  .t{font-size:13px;fill:#1e293b}
+  .ts{font-size:11px;fill:#64748b}
+  .w{stroke:#94a3b8;stroke-width:1.6;fill:none}
+  .wk{stroke:#2E6DB4;stroke-width:2;fill:none}
+  .wl{stroke:#D9730D;stroke-width:2;fill:none}
+  .flow{stroke-dasharray:6 6;animation:dash 1.2s linear infinite}
+  @keyframes dash{to{stroke-dashoffset:-24}}
+  .dim{opacity:.18;transition:opacity .35s}
+  .lit{opacity:1;transition:opacity .35s}
+  .ctrl{display:flex;justify-content:center;gap:8px;margin-top:6px;flex-wrap:wrap}
+  button{font:inherit;font-size:12.5px;border:1px solid #cbd5e1;background:#fff;border-radius:999px;padding:5px 14px;cursor:pointer;color:var(--ink)}
+  button.on{background:#0f172a;color:#fff;border-color:#0f172a}
+  .cap{text-align:center;font-size:12px;color:var(--muted);margin-top:6px;min-height:34px;line-height:1.45}
+</style>
+</head>
+<body>
+<div class="wrap">
+<svg viewBox="0 0 1000 430" id="svg">
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#94a3b8"/></marker>
+    <marker id="ahb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#2E6DB4"/></marker>
+    <marker id="aho" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#D9730D"/></marker>
+  </defs>
+
+  <!-- input -->
+  <rect x="10" y="190" width="58" height="42" rx="8" class="pill" style="stroke:#0f172a"/>
+  <text x="39" y="216" text-anchor="middle" class="t" style="font-weight:700">x<tspan baseline-shift="sub" font-size="10">t</tspan></text>
+  <path d="M68,211 H92" class="w" marker-end="url(#ah)"/>
+  <path d="M92,211 V60 M92,211 V392" class="w"/>
+
+  <!-- projections -->
+  <g id="g-qk">
+    <path d="M92,60 H108" class="w" marker-end="url(#ah)"/>
+    <rect x="108" y="42" width="128" height="36" rx="8" class="pill"/>
+    <text x="172" y="65" text-anchor="middle" class="t">W<tspan baseline-shift="sub" font-size="9">q</tspan>, W<tspan baseline-shift="sub" font-size="9">k</tspan> → q, k</text>
+  </g>
+  <path d="M92,140 H108" class="w" marker-end="url(#ah)"/>
+  <rect x="108" y="122" width="128" height="36" rx="8" class="pill"/>
+  <text x="172" y="145" text-anchor="middle" class="t">W<tspan baseline-shift="sub" font-size="9">v</tspan> → v</text>
+  <path d="M92,193 H108" class="w" marker-end="url(#ah)"/>
+  <rect x="108" y="175" width="128" height="36" rx="8" class="pill" style="stroke:#0f172a;stroke-width:1.8"/>
+  <text x="172" y="198" text-anchor="middle" class="t" style="font-weight:600">router: s<tspan baseline-shift="sub" font-size="9">t</tspan> = σ(W<tspan baseline-shift="sub" font-size="9">R</tspan>x<tspan baseline-shift="sub" font-size="9">t</tspan>)</text>
+  <path d="M92,246 H108" class="w" marker-end="url(#ah)"/>
+  <rect x="108" y="228" width="128" height="36" rx="8" class="pill"/>
+  <text x="172" y="251" text-anchor="middle" class="t">decay gate f<tspan baseline-shift="sub" font-size="9">t</tspan></text>
+  <path d="M92,312 H108" class="w" marker-end="url(#ah)"/>
+  <rect x="108" y="294" width="128" height="36" rx="8" class="pill" style="stroke-dasharray:5 4"/>
+  <text x="172" y="317" text-anchor="middle" class="t">q, k + LoRA → q̃, k̃</text>
+  <path d="M92,392 H108" class="w" marker-end="url(#ah)"/>
+  <rect x="108" y="374" width="128" height="36" rx="8" class="pill"/>
+  <text x="172" y="397" text-anchor="middle" class="t">W<tspan baseline-shift="sub" font-size="9">g</tspan> → gate g</text>
+
+  <!-- per-branch norms -->
+  <g id="exp-in">
+    <path d="M236,60 H272" class="wk" marker-end="url(#ahb)"/>
+    <rect x="272" y="40" width="138" height="40" rx="8" fill="#E9F0FA" stroke="#2E6DB4" stroke-width="1.5"/>
+    <text x="341" y="58" text-anchor="middle" class="t" style="fill:#2E6DB4;font-weight:600">QK-RMSNorm</text>
+    <text x="341" y="73" text-anchor="middle" class="ts">exponential branch</text>
+  </g>
+  <g id="lin-in">
+    <path d="M236,312 H272" class="wl" marker-end="url(#aho)"/>
+    <rect x="272" y="292" width="138" height="40" rx="8" fill="#FCEBD7" stroke="#D9730D" stroke-width="1.5"/>
+    <text x="341" y="310" text-anchor="middle" class="t" style="fill:#a14f00;font-weight:600">QK-RMSNorm, φ</text>
+    <text x="341" y="325" text-anchor="middle" class="ts">linear branch, φ = 1+elu</text>
+  </g>
+
+  <!-- router decision -->
+  <path d="M236,193 H440" class="w" marker-end="url(#ah)"/>
+  <polygon points="475,160 520,193 475,226 430,193" fill="#fff" stroke="#0f172a" stroke-width="1.8"/>
+  <text x="475" y="190" text-anchor="middle" class="t" style="font-size:12px;font-weight:700">s<tspan baseline-shift="sub" font-size="8">t</tspan> &gt; τ ?</text>
+  <text x="475" y="205" text-anchor="middle" class="ts" style="font-size:10px">r<tspan baseline-shift="sub" font-size="8">t</tspan></text>
+  <path d="M236,140 H300 V193" class="w"/>
+  <text x="306" y="162" class="ts">entry (k, v)</text>
+
+  <!-- route arrows -->
+  <g id="route-kv">
+    <path d="M475,160 V92 H556" class="wk flow" marker-end="url(#ahb)"/>
+    <text x="482" y="124" class="ts" style="fill:#2E6DB4;font-weight:600">r<tspan baseline-shift="sub" font-size="8">t</tspan>=1</text><text x="482" y="138" class="ts" style="fill:#2E6DB4">retain</text>
+  </g>
+  <g id="route-st">
+    <path d="M475,226 V290 H556" class="wl flow" marker-end="url(#aho)"/>
+    <text x="482" y="256" class="ts" style="fill:#D9730D;font-weight:600">r<tspan baseline-shift="sub" font-size="8">t</tspan>=0</text><text x="482" y="270" class="ts" style="fill:#D9730D">compress</text>
+  </g>
+
+  <!-- memories -->
+  <g id="kvmem">
+    <rect x="556" y="30" width="176" height="122" rx="12" fill="#E9F0FA" stroke="#2E6DB4" stroke-width="1.8"/>
+    <text x="644" y="52" text-anchor="middle" class="t" style="fill:#2E6DB4;font-weight:700">KV cache</text>
+    <g id="slots"></g>
+    <text x="644" y="122" text-anchor="middle" class="ts">append (k, v, pos t, L(t))</text>
+    <text x="644" y="139" text-anchor="middle" class="ts">read: exp(q·k + L(t)−L(s))</text>
+  </g>
+  <g id="stmem">
+    <rect x="556" y="240" width="176" height="122" rx="12" fill="#FCEBD7" stroke="#D9730D" stroke-width="1.8"/>
+    <text x="644" y="262" text-anchor="middle" class="t" style="fill:#a14f00;font-weight:700">Recurrent state</text>
+    <g id="stgrid"></g>
+    <text x="644" y="340" text-anchor="middle" class="ts">(V̄, log z): fixed d<tspan baseline-shift="sub" font-size="8">k</tspan>×d<tspan baseline-shift="sub" font-size="8">v</tspan></text>
+    <text x="644" y="355" text-anchor="middle" class="ts">read: φ(q̃)·φ(k̃)</text>
+  </g>
+  <!-- query wires -->
+  <path d="M410,60 H556" class="wk" marker-end="url(#ahb)"/>
+  <text x="440" y="54" class="ts" style="fill:#2E6DB4">q, k</text>
+  <path d="M410,330 H556" class="wl" marker-end="url(#aho)"/>
+  <text x="440" y="346" class="ts" style="fill:#a14f00">φ(q̃), φ(k̃)</text>
+  <!-- decay to both -->
+  <path d="M236,246 H420 V372 H644 V362" class="w" style="stroke-dasharray:4 4" marker-end="url(#ah)"/>
+  <path d="M420,246 V16 H644 V30" class="w" style="stroke-dasharray:4 4" marker-end="url(#ah)"/>
+  <text x="430" y="388" class="ts">shared decay on the full timeline (both memories)</text>
+
+  <!-- merge -->
+  <path d="M732,91 H770 V170" class="wk" marker-end="url(#ahb)"/>
+  <path d="M732,301 H770 V218" class="wl" marker-end="url(#aho)"/>
+  <rect x="742" y="170" width="112" height="48" rx="10" fill="#fff" stroke="#0f172a" stroke-width="1.8"/>
+  <text x="798" y="190" text-anchor="middle" class="t" style="font-weight:700">shared</text>
+  <text x="798" y="207" text-anchor="middle" class="t" style="font-weight:700">normalizer</text>
+  <text x="798" y="234" text-anchor="middle" class="ts">softmax over</text><text x="798" y="247" text-anchor="middle" class="ts">log-masses</text>
+
+  <!-- output chain -->
+  <path d="M854,194 H862 V77 H874" class="w" marker-end="url(#ah)"/>
+  <rect x="874" y="60" width="112" height="34" rx="8" class="pill"/>
+  <text x="930" y="82" text-anchor="middle" class="t">RMSNorm</text>
+  <rect x="874" y="177" width="112" height="34" rx="8" class="pill"/>
+  <text x="930" y="199" text-anchor="middle" class="t">⊙ swish(g)</text>
+  <rect x="874" y="294" width="112" height="34" rx="8" class="pill"/>
+  <text x="930" y="316" text-anchor="middle" class="t">W<tspan baseline-shift="sub" font-size="9">o</tspan> → o<tspan baseline-shift="sub" font-size="9">t</tspan></text>
+  <path d="M930,94 V177" class="w" marker-end="url(#ah)"/>
+  <path d="M930,211 V294" class="w" marker-end="url(#ah)"/>
+  <path d="M236,392 H868 V200 H874" class="w" style="stroke-dasharray:2 4;opacity:.6"/>
+  <path d="M930,328 V410" class="w" marker-end="url(#ah)"/>
+</svg>
+<div class="ctrl">
+  <button id="bkv">token retained (r<sub>t</sub>=1)</button>
+  <button id="bst">token compressed (r<sub>t</sub>=0)</button>
+  <button id="ball" class="on">both</button>
+</div>
+<div class="cap" id="cap">Every query reads both memories. Each branch has its own QK-RMSNorm; only the linear branch adds low-rank adapters (dashed).</div>
+</div>
+<script>
+const NS='http://www.w3.org/2000/svg';
+const slots=document.getElementById('slots');
+for(let i=0;i<5;i++){const r=document.createElementNS(NS,'rect');r.setAttribute('x',574+i*30);r.setAttribute('y',64);r.setAttribute('width',24);r.setAttribute('height',40);r.setAttribute('rx',4);r.setAttribute('fill',i<3?'#2E6DB4':'#fff');r.setAttribute('stroke','#2E6DB4');r.id='slot'+i;slots.appendChild(r)}
+const g=document.getElementById('stgrid');
+for(let i=0;i<6;i++)for(let j=0;j<10;j++){const r=document.createElementNS(NS,'rect');r.setAttribute('x',590+j*11);r.setAttribute('y',272+i*9.5);r.setAttribute('width',10);r.setAttribute('height',8.5);r.setAttribute('rx',1.5);r.setAttribute('fill',`rgba(217,115,13,${(0.15+0.6*Math.abs(Math.sin(i*3.1+j*1.7))).toFixed(2)})`);g.appendChild(r)}
+const caps={
+ kv:"<b style='color:#2E6DB4'>Retained entry.</b> Its key, value, original position, and cumulative log-forget L(t) are appended to the KV cache. The recurrent state is not written; it only decays.",
+ st:"<b style='color:#D9730D'>Compressed entry.</b> Its key feature φ(k̃) and value fold into the fixed-size state. Nothing is appended to the KV cache.",
+ all:"Every query reads both memories. Each branch has its own QK-RMSNorm; only the linear branch adds low-rank adapters (dashed)."};
+function set(m){
+  ['bkv','bst','ball'].forEach(id=>document.getElementById(id).classList.toggle('on',id==='b'+m));
+  document.getElementById('route-kv').setAttribute('class',m==='st'?'dim':'lit');
+  document.getElementById('route-st').setAttribute('class',m==='kv'?'dim':'lit');
+  document.getElementById('kvmem').setAttribute('class',m==='st'?'dim':'lit');
+  document.getElementById('stmem').setAttribute('class',m==='kv'?'dim':'lit');
+  document.getElementById('slot3').setAttribute('fill',m==='kv'?'#7fa8d8':'#fff');
+  document.getElementById('cap').innerHTML=caps[m];
+}
+document.getElementById('bkv').onclick=()=>set('kv');
+document.getElementById('bst').onclick=()=>set('st');
+document.getElementById('ball').onclick=()=>set('all');
+</script>
+</body>
+</html>

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ark: tokens kept in the KV cache</title>
+<style>
+  :root{--kv:#2E6DB4;--kv-bg:#E9F0FA;--kv-ink:#1d4f88;--st:#D9730D;--st-bg:#FCEBD7;--st-ink:#8a4304;--label:#71717a;--mono:"SF Mono",ui-monospace,Menlo,Consolas,monospace}
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:transparent}
+  body{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:#18181b;padding:4px 2px 6px}
+  .stage{max-width:640px;margin:0 auto;padding:4px 2px}
+  .head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:9px}
+  .ttl{font-size:12.5px;font-weight:700}
+  .ttl span{display:block;font-size:10.5px;font-weight:500;color:var(--label);margin-top:1px}
+  .lg{display:flex;gap:10px;font-size:10.5px;color:#52525b;align-items:center}
+  .lg i{display:inline-block;width:10px;height:10px;border-radius:3px;border:1px solid;margin-right:4px;vertical-align:-1px}
+  .text{display:flex;flex-wrap:wrap;gap:3px 3px;line-height:1}
+  .chip{font-family:var(--mono);font-size:10px;padding:3.5px 4px;border-radius:4px;border:1px solid #e4e4e7;background:#f4f4f5;color:#71717a;white-space:nowrap;font-weight:500;
+    position:relative;transition:background-color .35s ease,border-color .35s ease,color .35s ease}
+  .chip.st{background:#fdf3e8;border-color:#f6d9b8;color:#9a5a12}
+  .chip.kv{background:var(--kv-bg);border-color:var(--kv);color:var(--kv-ink);font-weight:800}
+  .chip.blink{z-index:2;animation:blink .9s ease-in-out 3}
+  @keyframes blink{0%,100%{transform:scale(1);box-shadow:0 0 0 0 rgba(46,109,180,0)}45%{transform:scale(1.32);box-shadow:0 0 0 3px rgba(46,109,180,.22),0 4px 10px rgba(46,109,180,.25)}}
+  .text.fade .chip{transition-duration:.6s}
+  @media (prefers-reduced-motion:reduce){.chip.blink{animation:none}}
+  .chip .sp{opacity:.35;font-weight:400}
+  body.dark{color:#e4e4e7}
+  body.dark .ttl span,body.dark .lg{color:#a1a1aa}
+  body.dark .chip{background:#2a2a2e;border-color:#3f3f46;color:#a1a1aa}
+  body.dark .chip.st{background:#3a2a1a;border-color:#7a4a1c;color:#f2b880}
+  body.dark .chip.kv{background:#1c2f48;border-color:#7fb0ee;color:#cfe3fb}
+  body.dark .lg i{filter:brightness(.9)}
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="head">
+    <div class="ttl">Tokens kept in the KV cache<span>one KV group of a trained Ark model</span></div>
+    <div class="lg"><span><i style="background:var(--kv-bg);border-color:var(--kv)"></i>KV cache (13%)</span><span><i style="background:#fdf3e8;border-color:#f6d9b8"></i>recurrent state</span></div>
+  </div>
+  <div class="text" id="text"></div>
+</div>
+<script>
+/* follow the site's light/dark theme (no frame, so the figure sits on the page) */
+function isDark(){try{const t=parent.document.documentElement.getAttribute('data-theme');if(t)return t==='dark'}catch(e){}return matchMedia('(prefers-color-scheme: dark)').matches}
+function applyTheme(){document.body.classList.toggle('dark',isDark());if(window.onTheme)onTheme()}
+applyTheme();
+try{new MutationObserver(applyTheme).observe(parent.document.documentElement,{attributes:true,attributeFilter:['data-theme']})}catch(e){}
+const T=[["<s>", 0], ["The", 0], ["sky", 0], ["is", 0], ["blue", 0], ["and", 0], ["the", 0], ["grass", 0], ["is", 0], ["green", 0], [".", 1], ["Bird", 0], ["s", 0], ["sing", 0], ["in", 0], ["the", 0], ["morning", 0], ["and", 0], ["the", 0], ["sun", 0], ["r", 0], ["ises", 0], ["in", 0], ["the", 0], ["east", 0], [".", 1], ["Water", 0], ["flows", 0], ["down", 0], ["hill", 0], ["and", 0], ["trees", 0], ["grow", 0], ["tall", 0], [".", 1], ["The", 0], ["password", 0], ["is", 0], ["DE", 1], ["LT", 0], ["A", 0], ["-", 0], ["7", 1], ["7", 1], ["4", 0], ["9", 0], [".", 1], ["Cloud", 0], ["s", 0], ["dr", 0], ["ift", 0], ["across", 0], ["the", 0], ["sky", 0], ["and", 0], ["wind", 0], ["blow", 0], ["s", 0], ["g", 0], ["ently", 0], [".", 1], ["Fish", 0], ["sw", 0], ["im", 0], ["in", 0], ["the", 0], ["ocean", 0], ["and", 0], ["waves", 0], ["crash", 0], ["on", 0], ["the", 0], ["shore", 0], [".", 1], ["Mountains", 0], ["stand", 0], ["still", 0], ["and", 0], ["rivers", 0], ["keep", 1], ["flow", 0], ["ing", 0], [".", 1], ["Flow", 0], ["ers", 0], ["blo", 0], ["om", 0], ["in", 0], ["spring", 0], ["and", 0], ["leaves", 0], ["fall", 0], ["in", 0], ["aut", 0], ["umn", 0], [".", 1], ["The", 0], ["secret", 0], ["code", 0], ["is", 0], ["O", 0], ["ME", 0], ["GA", 0], ["-", 0], ["2", 0], ["3", 1], ["5", 0], ["1", 0], [".", 1], ["Rain", 0], ["falls", 1], ["from", 0], ["the", 0], ["sky", 0], ["and", 0], ["snow", 0], ["covers", 0], ["the", 0], ["ground", 0], [".", 1], ["Stars", 0], ["sh", 0], ["ine", 0], ["at", 0], ["night", 0], ["and", 0], ["the", 0], ["moon", 0], ["g", 0], ["low", 0], ["s", 0], ["soft", 0], ["ly", 0], [".", 1]];
+const esc=w=>w.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const box=document.getElementById('text');
+box.innerHTML=T.map(([w])=>`<span class="chip">${esc(w)}</span>`).join('');
+const chips=[...box.children], sleep=ms=>new Promise(r=>setTimeout(r,ms));
+let running=false;
+async function cycle(){
+  if(running)return;running=true;
+  while(true){
+    // 1. all gray
+    box.classList.add('fade');chips.forEach(c=>c.classList.remove('kv','st','blink'));await sleep(900);box.classList.remove('fade');
+    // 2. colors fill in, left to right, like reading the text
+    for(let i=0;i<chips.length;i++){chips[i].classList.add(T[i][1]?'kv':'st');await sleep(11)}
+    await sleep(450);
+    // 3. the cached (blue) tokens blink: grow, then shrink
+    chips.forEach((c,i)=>{if(T[i][1])c.classList.add('blink')});
+    await sleep(2900);
+    chips.forEach(c=>c.classList.remove('blink'));
+    // 4. hold the result, then start over
+    await sleep(2600);
+  }
+}
+/* start when the figure scrolls into view */
+new IntersectionObserver((es,o)=>{if(es.some(e=>e.isIntersecting)){o.disconnect();cycle()}},{threshold:.3}).observe(box);
+</script>
+</body>
+</html>

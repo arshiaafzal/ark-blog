@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ark: routing tokens to two memories</title>
+<style>
+  :root{
+    --kv:#2E6DB4; --kv-bg:#E9F0FA; --kv-soft:#c9dbf2;
+    --st:#D9730D; --st-bg:#FCEBD7; --st-soft:#f6c897;
+    --ink:#1e293b; --muted:#64748b; --line:#e2e8f0;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--ink);background:transparent;padding:6px 4px 10px}
+  .wrap{max-width:880px;margin:0 auto;background:#fff;border:1px solid #e5e9f0;border-radius:14px;padding:16px 14px} /* ark-card */
+  .stream{display:flex;flex-wrap:wrap;gap:5px;justify-content:center;padding:12px 10px;border:1px solid var(--line);border-radius:10px;background:#fafbfc;min-height:56px}
+  .tok{font-size:13px;padding:4px 8px;border-radius:6px;background:#fff;border:1px solid #d7dde5;color:#94a3b8;transition:all .35s ease;position:relative}
+  .tok.cur{color:var(--ink);border-color:#0f172a;transform:translateY(-3px);box-shadow:0 4px 10px rgba(15,23,42,.15)}
+  .tok.kv{background:var(--kv);border-color:var(--kv);color:#fff}
+  .tok.st{background:var(--st-bg);border-color:var(--st-soft);color:#9a4a05}
+  .mid{display:grid;grid-template-columns:1fr 150px 1fr;align-items:center;margin:14px 0 6px;gap:8px}
+  .router{justify-self:center;text-align:center}
+  .rnode{width:62px;height:62px;border-radius:50%;border:2px solid #cbd5e1;background:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;margin:0 auto;transition:all .3s}
+  .rnode.kv{border-color:var(--kv);box-shadow:0 0 0 6px rgba(46,109,180,.15);color:var(--kv)}
+  .rnode.st{border-color:var(--st);box-shadow:0 0 0 6px rgba(217,115,13,.15);color:var(--st)}
+  .score{margin-top:8px;font-size:11.5px;color:var(--muted)}
+  .bar{height:7px;background:#eef2f7;border-radius:4px;position:relative;margin:4px auto 0;width:120px;overflow:visible}
+  .bar i{position:absolute;left:0;top:0;bottom:0;border-radius:4px;background:#94a3b8;transition:width .3s,background .3s}
+  .bar b{position:absolute;top:-3px;bottom:-3px;width:2px;background:#0f172a;left:50%}
+  .arrowL,.arrowR{font-size:12px;color:var(--muted);text-align:center;opacity:.35;transition:opacity .3s}
+  .arrowL.on{opacity:1;color:var(--kv);font-weight:600}.arrowR.on{opacity:1;color:var(--st);font-weight:600}
+  .mem{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .box{border-radius:12px;padding:10px 12px 12px;min-height:170px;position:relative}
+  .box h4{font-size:13px;font-weight:650;margin-bottom:2px}
+  .box p.sub{font-size:11.5px;color:var(--muted);margin-bottom:8px}
+  .kvbox{background:var(--kv-bg);border:1.5px solid var(--kv)}
+  .kvbox h4{color:var(--kv)}
+  .stbox{background:var(--st-bg);border:1.5px solid var(--st)}
+  .stbox h4{color:#a14f00}
+  .slots{display:flex;flex-wrap:wrap;gap:6px}
+  .slot{display:flex;flex-direction:column;align-items:center;border-radius:6px;background:#fff;border:1.5px solid var(--kv);padding:3px 6px;min-width:46px;animation:pop .4s ease}
+  .slot .k{font-size:12px;font-weight:600;color:var(--kv)}
+  .slot .p{font-size:10px;color:var(--muted)}
+  @keyframes pop{from{transform:scale(.4);opacity:0}to{transform:scale(1);opacity:1}}
+  .statewrap{display:flex;gap:12px;align-items:center}
+  .grid{display:grid;grid-template-columns:repeat(10,1fr);gap:2px;width:150px;height:150px;flex:none}
+  .grid div{border-radius:2px;background:#fff;transition:background .6s}
+  .stnote{font-size:11.5px;color:#7c4a14;line-height:1.45}
+  .stnote code{font-size:11px;background:#fff7ee;padding:0 3px;border-radius:3px}
+  .meters{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:12px;font-size:12px}
+  .meter .lab{display:flex;justify-content:space-between;color:var(--muted);margin-bottom:3px}
+  .meter .trk{height:10px;border-radius:5px;background:#eef2f7;overflow:hidden;display:flex}
+  .meter .trk i{display:block;height:100%;transition:width .35s}
+  .out{margin-top:12px;text-align:center;font-size:13px;color:var(--ink)}
+  .out .o{display:inline-block;padding:5px 12px;border:1.5px solid #94a3b8;border-radius:8px;background:#f8fafc;font-family:"Times New Roman",serif;font-size:15px}
+  .out .o .S{color:var(--st);font-weight:700}.out .o .C{color:var(--kv);font-weight:700}
+  .ctrl{display:flex;justify-content:center;gap:8px;margin-top:12px}
+  button{font:inherit;font-size:12.5px;border:1px solid #cbd5e1;background:#fff;border-radius:7px;padding:5px 12px;cursor:pointer;color:var(--ink)}
+  button:hover{background:#f1f5f9}
+  button.primary{background:#0f172a;color:#fff;border-color:#0f172a}
+  .cap{font-size:11.5px;color:var(--muted);text-align:center;margin-top:8px;font-style:italic}
+  @media (max-width:620px){.mem,.meters{grid-template-columns:1fr}.mid{grid-template-columns:1fr 110px 1fr}.grid{width:120px;height:120px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="stream" id="stream"></div>
+
+  <div class="mid">
+    <div class="arrowL" id="aL">◀ retain: KV cache<br><span style="font-size:11px">read with exp(q·k)</span></div>
+    <div class="router">
+      <div class="rnode" id="rnode">R<sub style="font-size:10px">t</sub></div>
+      <div class="score">router score s<sub>t</sub> = <span id="sval">–</span></div>
+      <div class="bar"><i id="sbar"></i><b title="threshold τ"></b></div>
+      <div class="score" style="margin-top:3px">threshold τ = 0.5</div>
+    </div>
+    <div class="arrowR" id="aR">compress: recurrent state ▶<br><span style="font-size:11px">read with φ(q)·φ(k)</span></div>
+  </div>
+
+  <div class="mem">
+    <div class="box kvbox">
+      <h4>KV cache C — exponential kernel</h4>
+      <p class="sub">Grows only with retained tokens. Each entry keeps its original position.</p>
+      <div class="slots" id="slots"></div>
+    </div>
+    <div class="box stbox">
+      <h4>Recurrent state S — linear kernel</h4>
+      <p class="sub">Fixed size d<sub>k</sub>×d<sub>v</sub>, no matter how many tokens fold in.</p>
+      <div class="statewrap">
+        <div class="grid" id="grid"></div>
+        <div class="stnote">
+          <code>S<sub>t</sub> = f<sub>t</sub>S<sub>t−1</sub> + (1−r<sub>t</sub>) φ(k<sub>t</sub>)v<sub>t</sub><sup>⊤</sup></code><br><br>
+          Every step decays the state by f<sub>t</sub>; only compressed tokens write into it.<br><br>
+          tokens folded in: <b id="nst">0</b>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="meters">
+    <div class="meter">
+      <div class="lab"><span>Full attention KV cache</span><span id="faLab">0 entries</span></div>
+      <div class="trk"><i id="faBar" style="background:#94a3b8;width:0"></i></div>
+    </div>
+    <div class="meter">
+      <div class="lab"><span>Ark: KV entries + fixed state</span><span id="arkLab">0 entries</span></div>
+      <div class="trk"><i id="arkBar" style="background:var(--kv);width:0"></i></div>
+    </div>
+  </div>
+
+  <div class="out"><span class="o">o<sub>t</sub> = f(<span class="S">S<sub>t</sub></span>, q<sub>t</sub>, <span class="C">C<sub>t</sub></span>)</span>
+    &nbsp;<span style="color:var(--muted);font-size:12px">every query reads <b>both</b> memories</span></div>
+
+  <div class="ctrl">
+    <button class="primary" id="play">▶ Play</button>
+    <button id="step">Step</button>
+    <button id="reset">Reset</button>
+  </div>
+  <div class="cap">Illustrative routing for one KV group in one layer. In Ark this decision is made independently in every layer and KV group.</div>
+</div>
+
+<script>
+const TOK = [
+  ["The",.12],["secret",.31],["code",.58],["is",.08],["OMEGA",.91],["-",.22],["2351",.94],[".",.66],
+  ["Rain",.14],["falls",.35],["from",.06],["the",.05],["sky",.18],["and",.07],["snow",.21],["covers",.12],
+  ["the",.05],["ground",.24],[".",.61],["What",.29],["is",.06],["the",.05],["secret",.38],["code",.44],["?",.72]
+];
+const TAU = .5, N = TOK.length;
+const stream = document.getElementById('stream'), slots = document.getElementById('slots'), grid = document.getElementById('grid');
+const cells = [];
+for(let i=0;i<100;i++){const d=document.createElement('div');grid.appendChild(d);cells.push(d)}
+let t = -1, timer = null, state = new Array(100).fill(0), nst = 0, nkv = 0;
+
+function hash(s,i){let h=2166136261^i;for(const c of s){h^=c.charCodeAt(0);h=Math.imul(h,16777619)}return h>>>0}
+function render(){
+  stream.innerHTML='';
+  TOK.forEach(([w,s],i)=>{
+    const e=document.createElement('span');e.className='tok';e.textContent=w;
+    if(i<t) e.classList.add(s>TAU?'kv':'st');
+    if(i===t){e.classList.add('cur');e.classList.add(s>TAU?'kv':'st')}
+    stream.appendChild(e);
+  });
+}
+function paintState(){
+  const mx=Math.max(1e-6,...state);
+  cells.forEach((c,i)=>{const a=state[i]/mx;c.style.background=`rgba(217,115,13,${(0.08+0.85*a).toFixed(3)})`});
+}
+function meters(){
+  const n=t+1, cap=N;
+  document.getElementById('faLab').textContent=`${n} entries`;
+  document.getElementById('faBar').style.width=(100*n/cap)+'%';
+  document.getElementById('arkLab').textContent=`${nkv} entries + state`;
+  document.getElementById('arkBar').style.width=(100*nkv/cap)+'%';
+  document.getElementById('nst').textContent=nst;
+}
+function step(){
+  if(t>=N-1){stop();return}
+  t++;
+  const [w,s]=TOK[t], kv=s>TAU;
+  const r=document.getElementById('rnode');r.className='rnode '+(kv?'kv':'st');
+  document.getElementById('sval').textContent=s.toFixed(2);
+  const sb=document.getElementById('sbar');sb.style.width=(s*100)+'%';sb.style.background=kv?'var(--kv)':'var(--st)';
+  document.getElementById('aL').classList.toggle('on',kv);document.getElementById('aR').classList.toggle('on',!kv);
+  // decay every step (both memories share the timeline)
+  for(let i=0;i<100;i++) state[i]*=0.9;
+  if(kv){
+    nkv++;
+    const e=document.createElement('div');e.className='slot';
+    e.innerHTML=`<span class="k">${w}</span><span class="p">pos ${t+1}</span>`;slots.appendChild(e);
+  }else{
+    nst++;
+    const h=hash(w,t), row=h%10, col=(h>>4)%10;
+    for(let i=0;i<10;i++){state[row*10+i]+=0.5+((h>>(i+3))&1)*0.6;state[i*10+col]+=0.4+((h>>(i+9))&1)*0.5}
+  }
+  render();paintState();meters();
+  if(t>=N-1) stop();
+}
+function play(){if(timer){stop();return}if(t>=N-1)reset();timer=setInterval(step,850);document.getElementById('play').textContent='❚❚ Pause';step()}
+function stop(){clearInterval(timer);timer=null;document.getElementById('play').textContent='▶ Play'}
+function reset(){stop();t=-1;state.fill(0);nst=0;nkv=0;slots.innerHTML='';
+  document.getElementById('rnode').className='rnode';document.getElementById('sval').textContent='–';
+  document.getElementById('sbar').style.width='0';document.getElementById('aL').classList.remove('on');document.getElementById('aR').classList.remove('on');
+  render();paintState();meters()}
+document.getElementById('play').onclick=play;
+document.getElementById('step').onclick=()=>{stop();step()};
+document.getElementById('reset').onclick=reset;
+reset();
+// autoplay once when scrolled into view
+const io=new IntersectionObserver(es=>{es.forEach(e=>{if(e.isIntersecting&&t<0&&!timer){play();io.disconnect()}})},{threshold:.4});
+io.observe(document.body);
+</script>
+</body>
+</html>
