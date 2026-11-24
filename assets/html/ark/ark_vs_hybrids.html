@@ -37,7 +37,7 @@
 const MODELS=[
   {name:'Kimi K3', url:'https://arxiv.org/abs/2607.24653',
    layers:i=>(i%4===3)?['exp','MLA']:['lin','KDA']},
-  {name:'Qwen3.8-Flash-Next', url:'https://qwen.ai/blog?id=qwen3.8-flash-next',
+  {name:'Qwen3.8-Flash-Next', url:'https://huggingface.co/Qwen/Qwen3.8-Flash-Next',
    layers:i=>(i%4===3)?['exp','Gated Attention']:['lin','Gated DeltaNet']},
   {name:'Ark (ours)', url:null,
    layers:()=>['ark','Ark']},
